@@ -58,7 +58,7 @@ validate_uuid() {
 }
 
 EFI_PARTITION_TYPE=C12A7328-F81F-11D2-BA4B-00A0C93EC93B
-ROOT_PARTITION_TYPE=B921B045-1DF0-41C3-AF44-4C6F280D3FAE
+ROOT_PARTITION_TYPE=0FC63DAF-8483-4772-8E79-3D69D8477DE4
 
 actual_efi_type=$(sfdisk --part-type "$IMAGE" 1 | normalize_uuid)
 actual_root_type=$(sfdisk --part-type "$IMAGE" 2 | normalize_uuid)
@@ -69,7 +69,7 @@ if [ "$actual_efi_type" != "$EFI_PARTITION_TYPE" ]; then
 fi
 
 if [ "$actual_root_type" != "$ROOT_PARTITION_TYPE" ]; then
-    printf 'error: partition 2 is not the expected ARM64 root partition: %s\n' "$actual_root_type" >&2
+    printf 'error: partition 2 is not the expected Linux filesystem partition: %s\n' "$actual_root_type" >&2
     exit 1
 fi
 
