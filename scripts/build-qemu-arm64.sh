@@ -12,6 +12,7 @@ BUILD_DIR=${BUILD_DIR:-"$SCRIPT_DIR/../build"}
 OUTPUT_IMAGE=${OUTPUT_IMAGE:-"$BUILD_DIR/morimil-trixie-arm64.raw"}
 IMAGE_SIZE=${IMAGE_SIZE:-8G}
 DEBIAN_SUITE=${DEBIAN_SUITE:-trixie}
+CUSTOMIZE_SCRIPT=${CUSTOMIZE_SCRIPT:-"$SCRIPT_DIR/configure-validation-image.sh"}
 FORCE=${FORCE:-0}
 
 for required_command in \
@@ -49,7 +50,7 @@ case "$DEBIAN_SNAPSHOT" in
 esac
 
 case "$SOURCE_DATE_EPOCH" in
-    *[!0-9]*)
+    ''|*[!0-9]*)
         printf 'error: SOURCE_DATE_EPOCH must be an unsigned Unix timestamp\n' >&2
         exit 1
         ;;
@@ -77,10 +78,17 @@ case "$IMAGE_SIZE" in
         ;;
 esac
 
+if [ ! -f "$CUSTOMIZE_SCRIPT" ] || [ ! -r "$CUSTOMIZE_SCRIPT" ]; then
+    printf 'error: image customization script is not readable: %s\n' "$CUSTOMIZE_SCRIPT" >&2
+    exit 1
+fi
+
 OUTPUT_DIR=$(dirname -- "$OUTPUT_IMAGE")
 OUTPUT_NAME=$(basename -- "$OUTPUT_IMAGE")
 CHECKSUM_FILE=$OUTPUT_IMAGE.sha256
 METADATA_FILE=$OUTPUT_IMAGE.metadata
+CUSTOMIZE_SCRIPT_DIGEST=$(sha256sum "$CUSTOMIZE_SCRIPT")
+CUSTOMIZE_SCRIPT_DIGEST=${CUSTOMIZE_SCRIPT_DIGEST%% *}
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -109,6 +117,7 @@ printf '  arch:       arm64\n'
 printf '  snapshot:   %s\n' "$DEBIAN_SNAPSHOT"
 printf '  mirror:     %s\n' "$SNAPSHOT_MIRROR"
 printf '  image size: %s\n' "$IMAGE_SIZE"
+printf '  customize:  %s\n' "$CUSTOMIZE_SCRIPT"
 printf '  output:     %s\n' "$OUTPUT_IMAGE"
 
 export SOURCE_DATE_EPOCH
@@ -118,6 +127,7 @@ mmdebstrap-autopkgtest-build-qemu \
     --arch=arm64 \
     --mirror="$SNAPSHOT_MIRROR" \
     --size="$IMAGE_SIZE" \
+    --script="$CUSTOMIZE_SCRIPT" \
     "$DEBIAN_SUITE" \
     "$TEMP_IMAGE"
 
@@ -129,7 +139,7 @@ mv -f "$TEMP_IMAGE" "$OUTPUT_IMAGE"
 )
 
 {
-    printf 'format_version=1\n'
+    printf 'format_version=2\n'
     printf 'artifact=%s\n' "$OUTPUT_NAME"
     printf 'debian_suite=%s\n' "$DEBIAN_SUITE"
     printf 'architecture=arm64\n'
@@ -137,6 +147,8 @@ mv -f "$TEMP_IMAGE" "$OUTPUT_IMAGE"
     printf 'snapshot_mirror=%s\n' "$SNAPSHOT_MIRROR"
     printf 'source_date_epoch=%s\n' "$SOURCE_DATE_EPOCH"
     printf 'image_size=%s\n' "$IMAGE_SIZE"
+    printf 'customize_script=%s\n' "$CUSTOMIZE_SCRIPT"
+    printf 'customize_script_sha256=%s\n' "$CUSTOMIZE_SCRIPT_DIGEST"
     if command -v dpkg-query >/dev/null 2>&1; then
         dpkg-query -W -f="package=\${Package} version=\${Version}\n" mmdebstrap 2>/dev/null || true
     fi
