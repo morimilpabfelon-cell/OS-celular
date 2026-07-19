@@ -13,6 +13,7 @@ OUTPUT_IMAGE=${OUTPUT_IMAGE:-"$BUILD_DIR/morimil-trixie-arm64.raw"}
 IMAGE_SIZE=${IMAGE_SIZE:-4G}
 DEBIAN_CONTAINER_IMAGE=${DEBIAN_CONTAINER_IMAGE:-unknown}
 HELPER=/usr/bin/mmdebstrap-autopkgtest-build-qemu
+HELPER_DEPENDENCIES='autopkgtest, dosfstools, e2fsprogs, fdisk, mount, mtools, passwd, uidmap, libarchive13, systemd-boot-efi:arm64, binutils-multiarch'
 
 if [ "$(id -u)" -ne 0 ]; then
     printf 'error: ci-build-arm64.sh must run as root inside the disposable Debian container\n' >&2
@@ -47,6 +48,7 @@ esac
 mkdir -p "$BUILD_DIR"
 export DEBIAN_FRONTEND=noninteractive
 
+dpkg --add-architecture arm64
 rm -f /etc/apt/sources.list
 find /etc/apt/sources.list.d -type f -delete
 cat > /etc/apt/sources.list.d/morimil-snapshot.sources <<EOF_SOURCES
@@ -65,21 +67,32 @@ apt-get install --yes --no-install-recommends \
     binutils-multiarch \
     ca-certificates \
     coreutils \
+    dosfstools \
     dpkg-dev \
     e2fsprogs \
+    fdisk \
+    libarchive13t64 \
     mmdebstrap \
     mount \
+    mtools \
+    passwd \
     qemu-efi-aarch64 \
     qemu-system-arm \
     qemu-user-binfmt \
-    qemu-utils
+    qemu-utils \
+    systemd-boot-efi:arm64 \
+    uidmap
 
 for required_command in \
     dpkg-architecture \
     dpkg-checkbuilddeps \
+    mcopy \
     mke2fs \
+    mkfs.vfat \
+    newuidmap \
     qemu-img \
     qemu-system-aarch64 \
+    sfdisk \
     sha256sum
 do
     if ! command -v "$required_command" >/dev/null 2>&1; then
@@ -92,7 +105,9 @@ for required_package in \
     binutils-multiarch \
     dpkg-dev \
     e2fsprogs \
-    mmdebstrap
+    libarchive13t64 \
+    mmdebstrap \
+    systemd-boot-efi:arm64
 do
     package_status=$(dpkg-query -W -f='${db:Status-Status}' "$required_package" 2>/dev/null || true)
     if [ "$package_status" != installed ]; then
@@ -106,9 +121,17 @@ if [ ! -x "$HELPER" ]; then
     exit 1
 fi
 
+if ! dpkg-checkbuilddeps -d "$HELPER_DEPENDENCIES" /dev/null; then
+    printf 'error: Debian QEMU helper dependencies are incomplete\n' >&2
+    exit 1
+fi
+
 sha256sum "$HELPER" > "$BUILD_DIR/mmdebstrap-helper.sha256"
 {
     printf 'helper=%s\n' "$HELPER"
+    printf 'helper_dependencies=%s\n' "$HELPER_DEPENDENCIES"
+    printf 'foreign_architectures=' 
+    dpkg --print-foreign-architectures | paste -sd, -
     grep -n -E 'dpkg-architecture|dpkg-checkbuilddeps|binutils-multiarch' "$HELPER" || true
 } > "$BUILD_DIR/mmdebstrap-helper-preflight.txt"
 
@@ -166,6 +189,8 @@ fi
     printf 'snapshot=%s\n' "$DEBIAN_SNAPSHOT"
     printf 'source_date_epoch=%s\n' "$SOURCE_DATE_EPOCH"
     printf 'binfmt_rule_file=%s\n' "$BINFMT_RULE_FILE"
+    printf 'foreign_architectures=' 
+    dpkg --print-foreign-architectures | paste -sd, -
     cat "$BINFMT_ENTRY"
     cat /etc/os-release
     mmdebstrap --version
@@ -173,13 +198,20 @@ fi
     dpkg-query -W \
         autopkgtest \
         binutils-multiarch \
+        dosfstools \
         dpkg-dev \
         e2fsprogs \
+        fdisk \
+        libarchive13t64 \
         mmdebstrap \
+        mtools \
+        passwd \
         qemu-efi-aarch64 \
         qemu-system-arm \
         qemu-user \
-        qemu-user-binfmt
+        qemu-user-binfmt \
+        systemd-boot-efi:arm64 \
+        uidmap
 } > "$BUILD_DIR/environment.txt"
 
 set +e
