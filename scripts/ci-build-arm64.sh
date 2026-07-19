@@ -61,18 +61,61 @@ apt-get -o Acquire::Check-Valid-Until=false update
 apt-get install --yes --no-install-recommends \
     arch-test \
     autopkgtest \
-    binfmt-support \
     ca-certificates \
     coreutils \
     mmdebstrap \
+    mount \
     qemu-efi-aarch64 \
     qemu-system-arm \
-    qemu-user-static \
+    qemu-user-binfmt \
     qemu-utils
 
-update-binfmts --enable qemu-aarch64
-if ! update-binfmts --display qemu-aarch64 | grep -Fq 'enabled'; then
+BINFMT_DIRECTORY=/proc/sys/fs/binfmt_misc
+BINFMT_REGISTER=$BINFMT_DIRECTORY/register
+BINFMT_ENTRY=$BINFMT_DIRECTORY/qemu-aarch64
+BINFMT_RULE_FILE=/usr/lib/binfmt.d/qemu-aarch64.conf
+
+if [ ! -e "$BINFMT_REGISTER" ]; then
+    mkdir -p "$BINFMT_DIRECTORY"
+    mount -t binfmt_misc binfmt_misc "$BINFMT_DIRECTORY"
+fi
+
+if [ ! -r "$BINFMT_RULE_FILE" ]; then
+    printf 'error: Debian qemu-aarch64 binfmt rule not found: %s\n' "$BINFMT_RULE_FILE" >&2
+    exit 1
+fi
+
+if [ -e "$BINFMT_ENTRY" ]; then
+    if ! grep -Fq 'enabled' "$BINFMT_ENTRY"; then
+        printf '1' > "$BINFMT_ENTRY"
+    fi
+else
+    binfmt_rule=
+    while IFS= read -r candidate_rule || [ -n "$candidate_rule" ]; do
+        case "$candidate_rule" in
+            ''|'#'*|';'*) continue ;;
+            *)
+                binfmt_rule=$candidate_rule
+                break
+                ;;
+        esac
+    done < "$BINFMT_RULE_FILE"
+
+    if [ -z "$binfmt_rule" ]; then
+        printf 'error: no registration rule found in %s\n' "$BINFMT_RULE_FILE" >&2
+        exit 1
+    fi
+
+    printf '%s' "$binfmt_rule" > "$BINFMT_REGISTER"
+fi
+
+if [ ! -r "$BINFMT_ENTRY" ] || ! grep -Fq 'enabled' "$BINFMT_ENTRY"; then
     printf 'error: qemu-aarch64 binfmt handler is not enabled\n' >&2
+    exit 1
+fi
+
+if ! arch-test arm64; then
+    printf 'error: arch-test could not execute ARM64 through binfmt_misc\n' >&2
     exit 1
 fi
 
@@ -80,6 +123,8 @@ fi
     printf 'container_image=%s\n' "$DEBIAN_CONTAINER_IMAGE"
     printf 'snapshot=%s\n' "$DEBIAN_SNAPSHOT"
     printf 'source_date_epoch=%s\n' "$SOURCE_DATE_EPOCH"
+    printf 'binfmt_rule_file=%s\n' "$BINFMT_RULE_FILE"
+    cat "$BINFMT_ENTRY"
     cat /etc/os-release
     mmdebstrap --version
     qemu-system-aarch64 --version | head -n 1
@@ -88,7 +133,8 @@ fi
         autopkgtest \
         qemu-efi-aarch64 \
         qemu-system-arm \
-        qemu-user-static
+        qemu-user \
+        qemu-user-binfmt
 } > "$BUILD_DIR/environment.txt"
 
 set +e
