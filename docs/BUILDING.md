@@ -2,56 +2,63 @@
 
 ## Estado
 
-Este procedimiento pertenece a la Fase 1. Construye una imagen Debian ARM64 para probar el arranque en QEMU. No produce todavía Morimil OS para un teléfono físico.
+Este procedimiento pertenece a la Fase 1. Construye una imagen Debian ARM64 para validar arranque UEFI, kernel y `multi-user.target` en QEMU `virt`.
 
-La construcción y el arranque completo todavía no han sido registrados como exitosos.
+No produce todavía Morimil OS para un teléfono físico. Una ejecución en QEMU no demuestra compatibilidad con pantalla táctil, batería, módem, cámara, sensores o GPU móvil.
 
-## Entorno admitido
+## Entradas fijadas
 
-La referencia inicial es un anfitrión Debian 13 `trixie`. Otros anfitriones pueden funcionar, pero no se considerarán reproducibles hasta que exista una ejecución registrada.
+Una construcción declarada reproducible debe fijar:
 
-Paquetes requeridos:
+- versión de Debian y arquitectura `arm64`;
+- marca temporal exacta de `snapshot.debian.org`;
+- `SOURCE_DATE_EPOCH`;
+- versión de `mmdebstrap` y QEMU;
+- script de personalización y su SHA-256;
+- tamaño de imagen y opciones de construcción.
+
+El constructor rechaza referencias como `latest`: `DEBIAN_SNAPSHOT` debe usar `YYYYMMDDThhmmssZ`.
+
+## Dependencias del anfitrión Debian 13
 
 ```sh
 sudo apt update
 sudo apt install \
+    arch-test \
+    autopkgtest \
+    binfmt-support \
     ca-certificates \
     mmdebstrap \
-    autopkgtest \
-    qemu-system-arm \
     qemu-efi-aarch64 \
+    qemu-system-arm \
+    qemu-user-static \
     qemu-utils \
     shellcheck
 ```
 
-No se debe ejecutar un constructor descargado desde una fuente no verificada. Se utilizan paquetes distribuidos por Debian.
+Para una construcción cruzada `amd64` → `arm64`, debe estar habilitado `qemu-aarch64` en `binfmt_misc`:
 
-## Comprobar el repositorio
+```sh
+sudo update-binfmts --enable qemu-aarch64
+update-binfmts --display qemu-aarch64
+```
+
+## Validar scripts antes de construir
 
 ```sh
 sh scripts/check-repository.sh
 sh tests/shell/test-scripts.sh
+sh tests/shell/test-boot-proof.sh
 ```
 
-La primera comprobación valida estructura, sintaxis y políticas. La segunda usa mocks para validar el contrato de los scripts. Ninguna construye ni arranca una imagen real.
-
-## Seleccionar un snapshot
-
-La construcción exige una marca temporal exacta de `snapshot.debian.org`, con formato:
-
-```text
-YYYYMMDDThhmmssZ
-```
-
-El archivo Debian puede resolver una hora solicitada hacia la última importación anterior. Por ello se debe registrar la marca solicitada y comprobar manualmente la marca efectiva antes de declarar una construcción reproducible.
-
-También debe fijarse `SOURCE_DATE_EPOCH` como un entero Unix coherente con el estado del archivo usado.
+Estas pruebas usan mocks. Comprueban contratos y argumentos, pero no descargan Debian ni arrancan una VM real.
 
 ## Construir
 
 ```sh
-export DEBIAN_SNAPSHOT='YYYYMMDDThhmmssZ'
-export SOURCE_DATE_EPOCH='UNIX_TIMESTAMP'
+export DEBIAN_SNAPSHOT='20260718T000000Z'
+export SOURCE_DATE_EPOCH='1784332800'
+export IMAGE_SIZE='4G'
 sh scripts/build-qemu-arm64.sh
 ```
 
@@ -63,99 +70,100 @@ build/morimil-trixie-arm64.raw.sha256
 build/morimil-trixie-arm64.raw.metadata
 ```
 
-La presencia de estos archivos solo demuestra que terminó la construcción. No demuestra que la imagen arranque.
+El constructor utiliza `mmdebstrap-autopkgtest-build-qemu` con:
 
-El constructor crea la imagen temporal dentro de un directorio bajo `/tmp` y ajusta ese directorio a modo `0755`. Esto es deliberado: el manual de Debian exige que todos los componentes del camino sean atravesables por el usuario aislado que escribe la imagen.
+- `--boot=efi`;
+- `--arch=arm64`;
+- mirror fechado de Debian Snapshot;
+- tamaño explícito;
+- `scripts/configure-validation-image.sh` mediante `--script`.
 
-Variables opcionales:
+El script de personalización instala dentro de la imagen una prueba temporal. Tras activarse `multi-user.target`, un timer comprueba que el target esté activo, escribe en la consola:
 
 ```text
-BUILD_DIR       directorio de salida
-OUTPUT_IMAGE    ruta completa de la imagen
-IMAGE_SIZE      tamaño raw, 8G por defecto
-DEBIAN_SUITE    trixie por defecto
-FORCE           1 permite reemplazar artefactos existentes
+MORIMIL_BOOT_PROOF target=multi-user.target state=active
 ```
 
-Por defecto, el constructor se niega a reemplazar una imagen, checksum o metadata existentes.
+y solicita un apagado controlado. Esta instrumentación pertenece únicamente a la imagen de validación y no define el comportamiento del producto final.
+
+Por defecto, el constructor se niega a reemplazar una imagen, checksum o metadata existentes. Para una reconstrucción deliberada:
+
+```sh
+FORCE=1 sh scripts/build-qemu-arm64.sh
+```
 
 ## Arrancar en QEMU
 
 ```sh
-sh scripts/run-qemu-arm64.sh
+sh scripts/run-qemu-arm64.sh > build/boot.log 2>&1
+sh scripts/verify-boot-log.sh build/boot.log
 ```
 
 La prueba utiliza:
 
 - `qemu-system-aarch64`;
-- máquina genérica `virt`;
-- CPU virtual AArch64 `cortex-a57`;
-- aceleración TCG fija para la primera validación;
-- firmware UEFI de `/usr/share/AAVMF/`;
+- máquina `virt`;
+- CPU AArch64 `cortex-a57`;
+- aceleración TCG;
+- firmware UEFI AAVMF de Debian;
 - disco VirtIO;
-- consola serie;
+- consola serie mediante `-nographic`;
 - red desactivada;
-- modo snapshot para no escribir cambios persistentes en la imagen base.
+- modo snapshot para no modificar persistentemente la imagen.
 
-Variables opcionales:
+El lanzador exige el manifiesto SHA-256 antes de arrancar. `ALLOW_UNVERIFIED_IMAGE=1` existe solo para diagnósticos explícitos y no es aceptable como evidencia.
+
+## Criterio de éxito
+
+Una ejecución aprobada requiere conjuntamente:
+
+1. el constructor termina con código 0;
+2. el checksum de la imagen es válido;
+3. QEMU inicia mediante UEFI;
+4. el kernel ARM64 y systemd arrancan;
+5. el log contiene la marca exacta de `multi-user.target` activo;
+6. la VM se apaga y QEMU termina con código 0;
+7. se conservan versiones, logs, checksum y metadata.
+
+La existencia de un archivo `.raw`, una captura o un login visible no es evidencia suficiente por sí sola.
+
+## Construcción real en GitHub Actions
+
+El workflow `Repository validation` contiene un job `Debian 13 ARM64 real build and boot`. Se ejecuta:
+
+- manualmente mediante `workflow_dispatch`; o
+- en un pull request cuyo cuerpo incluya exactamente:
 
 ```text
-IMAGE                    ruta de la imagen raw
-MEMORY_MIB               memoria, 2048 por defecto
-CPUS                     CPU virtuales, 2 por defecto
-ALLOW_UNVERIFIED_IMAGE   1 permite una prueba explícitamente no verificada
+<!-- run-arm64-build -->
 ```
 
-El arranque falla por defecto si no existe el manifiesto SHA-256. KVM no está habilitado en esta fase; se añadirá únicamente después de una prueba específica sobre un anfitrión ARM64 compatible.
+El job utiliza la imagen oficial fechada `debian:trixie-20260623`, registra su digest real, cambia APT al snapshot fijado, instala herramientas desde ese snapshot y ejecuta la construcción y el arranque con TCG.
 
-Salir de QEMU:
+El contenedor se ejecuta con privilegios porque la construcción cruzada necesita `binfmt_misc` y operaciones de imagen. Para reducir superficie:
+
+- no recibe secretos;
+- el repositorio se monta de solo lectura;
+- únicamente `build/` se monta con escritura;
+- la red de la VM QEMU permanece desactivada;
+- el archivo raw no se publica como artefacto.
+
+Se conservan durante siete días:
 
 ```text
-Ctrl-a x
+build.log
+boot.log
+container-image.txt
+environment.txt
+morimil-trixie-arm64.raw.metadata
+morimil-trixie-arm64.raw.sha256
+validation-status.txt
 ```
 
-## Registrar la consola
+## Fuentes primarias
 
-En un anfitrión con `script(1)` se puede conservar la sesión completa:
-
-```sh
-script -qefc 'sh scripts/run-qemu-arm64.sh' build/boot.log
-```
-
-## Evidencia obligatoria
-
-Una ejecución válida debe guardar:
-
-```sh
-mmdebstrap --version
-qemu-system-aarch64 --version
-dpkg-query -W mmdebstrap qemu-system-arm qemu-efi-aarch64
-sha256sum -c build/morimil-trixie-arm64.raw.sha256
-```
-
-Además debe conservarse el registro completo de la consola, incluyendo:
-
-- inicialización UEFI;
-- carga del kernel;
-- inicio de systemd;
-- llegada a `multi-user.target`;
-- apagado controlado.
-
-Hasta que esa evidencia exista, la Fase 1 permanece **no validada**.
-
-## Restricciones actuales
-
-- El constructor usado está orientado a imágenes de prueba de Debian; no define la imagen final del producto.
-- Todavía no se han definido particiones A/B, recuperación, raíz inmutable, cifrado ni actualizaciones atómicas.
-- No se prueba hardware móvil.
-- La red se mantiene desactivada para reducir variables durante la primera prueba de arranque.
-- El workflow actual valida sintaxis, políticas y contratos mediante mocks, pero no una construcción real.
-- KVM y cualquier optimización dependiente del anfitrión quedan fuera de esta primera prueba.
-
-## Fuentes
-
-- https://packages.debian.org/trixie/mmdebstrap
 - https://manpages.debian.org/trixie/mmdebstrap/mmdebstrap-autopkgtest-build-qemu.1.en.html
+- https://snapshot.debian.org/
 - https://www.qemu.org/docs/master/system/arm/virt.html
 - https://packages.debian.org/trixie/qemu-efi-aarch64
-- https://snapshot.debian.org/
+- https://docs.github.com/en/actions/tutorials/store-and-share-data
