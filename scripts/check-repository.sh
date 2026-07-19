@@ -31,11 +31,13 @@ for path in \
     scripts/build-qemu-arm64.sh \
     scripts/ci-build-arm64.sh \
     scripts/configure-validation-image.sh \
+    scripts/normalize-qemu-image.sh \
     scripts/run-qemu-arm64.sh \
     scripts/verify-boot-log.sh \
     scripts/check-repository.sh \
     tests/shell/test-scripts.sh \
-    tests/shell/test-boot-proof.sh
+    tests/shell/test-boot-proof.sh \
+    tests/shell/test-image-normalization.sh
 do
     if [ ! -f "$path" ]; then
         printf 'error: required file is missing: %s\n' "$path" >&2
@@ -62,8 +64,23 @@ if [ "$SKIP_SHELLCHECK" = 0 ]; then
     fi
 fi
 
-if git ls-files -- '*.raw' '*.qcow2' '*.img' '*.log' '*.sha256' '*.metadata' | grep -q .; then
-    git ls-files -- '*.raw' '*.qcow2' '*.img' '*.log' '*.sha256' '*.metadata' >&2
+if git ls-files -- \
+    '*.raw' \
+    '*.qcow2' \
+    '*.img' \
+    '*.log' \
+    '*.sha256' \
+    '*.metadata' \
+    '*.identifiers' | grep -q .
+then
+    git ls-files -- \
+        '*.raw' \
+        '*.qcow2' \
+        '*.img' \
+        '*.log' \
+        '*.sha256' \
+        '*.metadata' \
+        '*.identifiers' >&2
     printf 'error: generated artifacts must not be tracked\n' >&2
     exit 1
 fi
