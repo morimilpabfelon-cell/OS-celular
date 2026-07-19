@@ -120,6 +120,7 @@ jobs:
             build/environment.txt
             build/guest-apt-sources.sources
             build/guest-apt-sources.sha256
+            build/image-regions.txt
             build/mmdebstrap-helper-preflight.txt
             build/mmdebstrap-helper.sha256
             build/morimil-trixie-arm64.raw.identifiers
