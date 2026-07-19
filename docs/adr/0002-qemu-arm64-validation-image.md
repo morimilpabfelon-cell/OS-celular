@@ -10,6 +10,8 @@ Morimil OS necesita validar el arranque de Debian ARM64 antes de seleccionar har
 
 Debian 13 `trixie` soporta `arm64`. `mmdebstrap-autopkgtest-build-qemu` puede crear imágenes raw, utiliza EFI y admite salida reproducible cuando se fijan un snapshot y `SOURCE_DATE_EPOCH`.
 
+Las primeras ejecuciones reales demostraron que `setup-testbed` puede introducir una fuente de seguridad en vivo y que HTTPS puede fallar dentro del chroot antes de instalar certificados. Ambas condiciones invalidan una construcción que pretenda tener entradas completamente fijadas.
+
 ## Decisión
 
 La Fase 1 utilizará:
@@ -18,6 +20,9 @@ La Fase 1 utilizará:
 - `mmdebstrap-autopkgtest-build-qemu`;
 - snapshot fechado de `snapshot.debian.org`;
 - `SOURCE_DATE_EPOCH` explícito;
+- fuentes deb822 fijadas para `debian` y `debian-security`;
+- HTTP como transporte hacia Snapshot, manteniendo validación de firmas Release mediante el keyring oficial;
+- `Check-Valid-Until: no` exclusivamente para las entradas históricas;
 - QEMU `qemu-system-aarch64` con máquina `virt`;
 - CPU virtual `cortex-a57`;
 - firmware AAVMF del paquete Debian `qemu-efi-aarch64`;
@@ -25,6 +30,8 @@ La Fase 1 utilizará:
 - red desactivada;
 - checksum obligatorio antes del arranque;
 - instrumentación temporal mediante la opción `--script`.
+
+Las fuentes del invitado se entregarán mediante `AUTOPKGTEST_APT_SOURCES`, se conservarán como artefacto y tendrán un SHA-256. No se aceptará `security.debian.org`, `deb.debian.org` ni otro repositorio vivo dentro de la imagen de validación.
 
 La instrumentación instala un timer de systemd. Después de su activación, un servicio comprueba que `multi-user.target` esté realmente activo, imprime una marca estructurada en `/dev/console` y solicita el apagado.
 
@@ -39,6 +46,7 @@ El contenedor requiere modo privilegiado para habilitar `binfmt_misc` durante la
 - solo `build/` permite escritura;
 - las herramientas se instalan desde el snapshot fijado;
 - se registra el digest real del contenedor;
+- se registran las fuentes APT del invitado y su hash;
 - la VM no tiene red;
 - la imagen raw no se publica.
 
@@ -49,13 +57,14 @@ La ejecución privilegiada es una decisión de laboratorio, no una arquitectura 
 La Fase 1 no queda validada por crear un archivo raw. Debe existir evidencia de que:
 
 1. la construcción termina correctamente;
-2. el checksum de la imagen es válido;
-3. UEFI encuentra el cargador;
-4. el kernel ARM64 inicia;
-5. systemd activa `multi-user.target`;
-6. la consola contiene `MORIMIL_BOOT_PROOF target=multi-user.target state=active`;
-7. la VM se apaga y QEMU termina con código 0;
-8. versiones, logs, metadata y checksum quedan archivados.
+2. ninguna fuente APT viva entra en la imagen;
+3. el checksum de la imagen es válido;
+4. UEFI encuentra el cargador;
+5. el kernel ARM64 inicia;
+6. systemd activa `multi-user.target`;
+7. la consola contiene `MORIMIL_BOOT_PROOF target=multi-user.target state=active`;
+8. la VM se apaga y QEMU termina con código 0;
+9. versiones, fuentes APT, logs, metadata y checksums quedan archivados.
 
 La reproducibilidad bit a bit requiere además dos construcciones independientes con SHA-256 idéntico.
 
@@ -64,6 +73,7 @@ La reproducibilidad bit a bit requiere además dos construcciones independientes
 - separa fallos de arquitectura de problemas de hardware móvil;
 - produce evidencia legible por máquina;
 - evita confundir un login visible con una prueba formal del target;
+- elimina repositorios flotantes del sistema invitado;
 - conserva entradas y versiones del entorno;
 - no almacena imágenes pesadas en GitHub.
 
@@ -72,6 +82,7 @@ La reproducibilidad bit a bit requiere además dos construcciones independientes
 - QEMU `virt` no prueba hardware telefónico;
 - TCG no representa rendimiento real;
 - el contenedor privilegiado amplía la superficie del runner de CI;
+- HTTP protege integridad mediante firmas APT, pero no aporta confidencialidad de transporte;
 - el constructor de autopkgtest es un artefacto de validación, no el formato final de Morimil OS;
 - una construcción exitosa no demuestra reproducibilidad;
 - la instrumentación de apagado debe eliminarse de cualquier imagen de producto.
@@ -81,6 +92,14 @@ La reproducibilidad bit a bit requiere además dos construcciones independientes
 ### Usar Ubuntu como entorno de referencia
 
 Se descarta para la prueba de referencia porque las versiones de `mmdebstrap` y herramientas pueden diferir de Debian 13. Ubuntu puede servir para validación estática, no para afirmar una construcción Debian controlada.
+
+### Mantener HTTPS dentro del chroot inicial
+
+Se descarta para esta fase porque `setup-testbed` ejecuta APT antes de que la imagen garantice certificados funcionales. La autenticidad se conserva mediante firmas Release y `Signed-By`.
+
+### Permitir el repositorio de seguridad en vivo
+
+Se descarta porque una fuente flotante impide identificar exactamente las entradas de la construcción. Se utiliza el archivo `debian-security` del mismo timestamp solicitado.
 
 ### Subir la imagen raw como artefacto
 
@@ -94,7 +113,10 @@ Se descarta porque no prueba de forma explícita el estado de `multi-user.target
 
 - https://www.debian.org/releases/stable/arm64/
 - https://manpages.debian.org/trixie/mmdebstrap/mmdebstrap-autopkgtest-build-qemu.1.en.html
+- https://manpages.debian.org/trixie/autopkgtest/autopkgtest-build-qemu.1.en.html
+- https://manpages.debian.org/trixie/apt/sources.list.5.en.html
 - https://snapshot.debian.org/
+- https://packages.debian.org/trixie/uuid-runtime
 - https://www.qemu.org/docs/master/system/arm/virt.html
 - https://packages.debian.org/trixie/qemu-efi-aarch64
 - https://docs.github.com/en/actions/tutorials/store-and-share-data
