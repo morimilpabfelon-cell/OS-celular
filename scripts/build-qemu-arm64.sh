@@ -101,7 +101,7 @@ if [ "$FORCE" != 1 ]; then
     done
 fi
 
-SNAPSHOT_MIRROR=https://snapshot.debian.org/archive/debian/$DEBIAN_SNAPSHOT/
+SNAPSHOT_MIRROR=http://snapshot.debian.org/archive/debian/$DEBIAN_SNAPSHOT/
 TEMP_DIR=$(mktemp -d /tmp/morimil-arm64.XXXXXX)
 chmod 0755 "$TEMP_DIR"
 TEMP_IMAGE=$TEMP_DIR/$OUTPUT_NAME
@@ -145,6 +145,7 @@ mv -f "$TEMP_IMAGE" "$OUTPUT_IMAGE"
     printf 'architecture=arm64\n'
     printf 'snapshot_requested=%s\n' "$DEBIAN_SNAPSHOT"
     printf 'snapshot_mirror=%s\n' "$SNAPSHOT_MIRROR"
+    printf 'snapshot_transport=http_with_signed_release_verification\n'
     printf 'source_date_epoch=%s\n' "$SOURCE_DATE_EPOCH"
     printf 'image_size=%s\n' "$IMAGE_SIZE"
     printf 'customize_script=%s\n' "$CUSTOMIZE_SCRIPT"
