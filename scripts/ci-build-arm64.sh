@@ -14,6 +14,7 @@ IMAGE_SIZE=${IMAGE_SIZE:-4G}
 DEBIAN_CONTAINER_IMAGE=${DEBIAN_CONTAINER_IMAGE:-unknown}
 HELPER=/usr/bin/mmdebstrap-autopkgtest-build-qemu
 HELPER_DEPENDENCIES='autopkgtest, dosfstools, e2fsprogs, fdisk, mount, mtools, passwd, uidmap, libarchive13, systemd-boot-efi:arm64, binutils-multiarch'
+GUEST_APT_SOURCES_FILE=$BUILD_DIR/guest-apt-sources.sources
 
 if [ "$(id -u)" -ne 0 ]; then
     printf 'error: ci-build-arm64.sh must run as root inside the disposable Debian container\n' >&2
@@ -71,6 +72,7 @@ apt-get install --yes --no-install-recommends \
     dpkg-dev \
     e2fsprogs \
     fdisk \
+    gpg \
     libarchive13t64 \
     mmdebstrap \
     mount \
@@ -81,11 +83,13 @@ apt-get install --yes --no-install-recommends \
     qemu-user-binfmt \
     qemu-utils \
     systemd-boot-efi:arm64 \
-    uidmap
+    uidmap \
+    uuid-runtime
 
 for required_command in \
     dpkg-architecture \
     dpkg-checkbuilddeps \
+    gpg \
     mcopy \
     mke2fs \
     mkfs.vfat \
@@ -93,7 +97,8 @@ for required_command in \
     qemu-img \
     qemu-system-aarch64 \
     sfdisk \
-    sha256sum
+    sha256sum \
+    uuidgen
 do
     if ! command -v "$required_command" >/dev/null 2>&1; then
         printf 'error: required helper command not found: %s\n' "$required_command" >&2
@@ -105,9 +110,11 @@ for required_package in \
     binutils-multiarch \
     dpkg-dev \
     e2fsprogs \
+    gpg \
     libarchive13t64 \
     mmdebstrap \
-    systemd-boot-efi:arm64
+    systemd-boot-efi:arm64 \
+    uuid-runtime
 do
     package_status=$(dpkg-query -W -f='${db:Status-Status}' "$required_package" 2>/dev/null || true)
     if [ "$package_status" != installed ]; then
@@ -126,12 +133,34 @@ if ! dpkg-checkbuilddeps -d "$HELPER_DEPENDENCIES" /dev/null; then
     exit 1
 fi
 
+cat > "$GUEST_APT_SOURCES_FILE" <<EOF_GUEST_SOURCES
+Types: deb
+URIs: http://snapshot.debian.org/archive/debian/$DEBIAN_SNAPSHOT/
+Suites: trixie
+Components: main
+Check-Valid-Until: no
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: http://snapshot.debian.org/archive/debian-security/$DEBIAN_SNAPSHOT/
+Suites: trixie-security
+Components: main
+Check-Valid-Until: no
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+EOF_GUEST_SOURCES
+
+AUTOPKGTEST_APT_SOURCES=$(cat "$GUEST_APT_SOURCES_FILE")
+export AUTOPKGTEST_APT_SOURCES
+sha256sum "$GUEST_APT_SOURCES_FILE" > "$BUILD_DIR/guest-apt-sources.sha256"
+
 sha256sum "$HELPER" > "$BUILD_DIR/mmdebstrap-helper.sha256"
 {
     printf 'helper=%s\n' "$HELPER"
     printf 'helper_dependencies=%s\n' "$HELPER_DEPENDENCIES"
     printf 'foreign_architectures='
     dpkg --print-foreign-architectures | paste -sd, -
+    printf 'autopkgtest_apt_sources_sha256='
+    cut -d ' ' -f 1 "$BUILD_DIR/guest-apt-sources.sha256"
     grep -n -E 'dpkg-architecture|dpkg-checkbuilddeps|binutils-multiarch' "$HELPER" || true
 } > "$BUILD_DIR/mmdebstrap-helper-preflight.txt"
 
@@ -189,6 +218,7 @@ fi
     printf 'snapshot=%s\n' "$DEBIAN_SNAPSHOT"
     printf 'source_date_epoch=%s\n' "$SOURCE_DATE_EPOCH"
     printf 'binfmt_rule_file=%s\n' "$BINFMT_RULE_FILE"
+    printf 'guest_apt_sources=%s\n' "$GUEST_APT_SOURCES_FILE"
     printf 'foreign_architectures='
     dpkg --print-foreign-architectures | paste -sd, -
     cat "$BINFMT_ENTRY"
@@ -202,6 +232,7 @@ fi
         dpkg-dev \
         e2fsprogs \
         fdisk \
+        gpg \
         libarchive13t64 \
         mmdebstrap \
         mtools \
@@ -211,7 +242,8 @@ fi
         qemu-user \
         qemu-user-binfmt \
         systemd-boot-efi:arm64 \
-        uidmap
+        uidmap \
+        uuid-runtime
 } > "$BUILD_DIR/environment.txt"
 
 set +e
