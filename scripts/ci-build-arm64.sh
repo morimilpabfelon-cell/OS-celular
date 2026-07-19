@@ -87,6 +87,7 @@ apt-get install --yes --no-install-recommends \
     uuid-runtime
 
 for required_command in \
+    dd \
     dpkg-architecture \
     dpkg-checkbuilddeps \
     gpg \
@@ -98,6 +99,7 @@ for required_command in \
     qemu-system-aarch64 \
     sfdisk \
     sha256sum \
+    stat \
     uuidgen
 do
     if ! command -v "$required_command" >/dev/null 2>&1; then
@@ -258,6 +260,11 @@ cat "$BUILD_DIR/build.log"
 if [ "$build_status" -ne 0 ]; then
     exit "$build_status"
 fi
+
+sh "$SCRIPT_DIR/fingerprint-qemu-image.sh" \
+    "$OUTPUT_IMAGE" \
+    "$BUILD_DIR/image-regions.txt"
+cat "$BUILD_DIR/image-regions.txt"
 
 set +e
 BUILD_DIR=$BUILD_DIR \
