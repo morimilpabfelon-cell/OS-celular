@@ -1,47 +1,87 @@
-# Validación del repositorio
+# Validación y evidencia
 
-## Alcance
+## Propósito
 
-La validación automática comprueba estructura, sintaxis y limpieza del repositorio. No demuestra que una imagen arranque, que el sistema funcione en un teléfono ni que el hardware sea compatible.
+Este documento separa las comprobaciones automáticas de las afirmaciones técnicas que todavía requieren una ejecución real. Un resultado verde de CI no convierte una imagen en arrancable ni demuestra compatibilidad con un teléfono.
 
-## Comprobación local
+## Estado actual
 
-Ejecutar desde la raíz del repositorio:
+| Capacidad | Estado | Evidencia exigida |
+|---|---|---|
+| Estructura del repositorio | Automatizada | workflow `Repository validation` |
+| Sintaxis POSIX de scripts | Automatizada | `sh -n` y ShellCheck |
+| Contratos del constructor y QEMU | Automatizados con mocks | `tests/shell/test-scripts.sh` |
+| Ausencia de imágenes generadas en Git | Automatizada | revisión de archivos rastreados |
+| Construcción Debian ARM64 real | No validada | log completo y artefactos |
+| Arranque UEFI real | No validado | consola serie |
+| Carga del kernel ARM64 | No validada | consola serie |
+| Llegada a `multi-user.target` | No validada | consola y estado de systemd |
+| Reproducibilidad bit a bit | No validada | dos SHA-256 idénticos |
+| Soporte de teléfono físico | No iniciado | matriz por componente |
+
+## Validación local del repositorio
 
 ```sh
+sudo apt install shellcheck
 sh scripts/check-repository.sh
+sh tests/shell/test-scripts.sh
 ```
 
-El script realiza:
+La comprobación local valida archivos, sintaxis, ShellCheck cuando está disponible, diferencias inválidas y que no se hayan añadido imágenes o registros generados.
 
-- verificación de archivos fundacionales obligatorios;
-- análisis sintáctico POSIX con `sh -n` de todos los scripts `.sh`;
-- ShellCheck cuando está instalado;
-- comprobación de espacios y errores de parche mediante Git;
-- rechazo de imágenes, discos virtuales, logs, checksums y metadata generados que hayan sido añadidos al índice.
+Las pruebas contractuales sustituyen `mmdebstrap-autopkgtest-build-qemu` y `qemu-system-aarch64` por ejecutables controlados. Comprueban que los scripts:
 
-## GitHub Actions
+- transmiten las opciones ARM64, EFI, snapshot y TCG esperadas;
+- crean checksum y metadata;
+- usan un directorio temporal atravesable;
+- rechazan snapshots mal formados y sobrescrituras accidentales;
+- exigen checksum antes del arranque;
+- conservan la red desactivada y el modo snapshot;
+- rechazan recursos inválidos y protegen la plantilla de variables UEFI.
 
-El workflow `.github/workflows/validate.yml` se ejecuta en pull requests y en cambios enviados a `main`.
+Estas pruebas no descargan Debian, no producen una imagen válida y no ejecutan QEMU real.
 
-Características:
+## Evidencia de construcción
 
-- runner `ubuntu-24.04`;
-- permisos de contenido en solo lectura;
-- checkout sin persistir credenciales;
-- límite de diez minutos;
-- instalación explícita de ShellCheck desde los repositorios del runner.
+Cada ejecución real debe conservar como mínimo:
 
-## Límites
+```text
+build/
+├── morimil-trixie-arm64.raw
+├── morimil-trixie-arm64.raw.sha256
+├── morimil-trixie-arm64.raw.metadata
+├── build.log
+└── boot.log
+```
 
-Una ejecución verde significa únicamente que las comprobaciones estáticas definidas terminaron correctamente. No valida:
+La imagen no debe subirse al repositorio Git. Los logs y artefactos se conservarán como artefactos de CI o en almacenamiento de pruebas cuando esa infraestructura esté definida.
 
-- construcción completa de una imagen ARM64;
-- arranque UEFI;
-- kernel, initramfs o systemd;
-- `multi-user.target`;
-- apagado controlado;
-- reproducibilidad bit a bit;
-- soporte de pantalla, táctil, audio, batería, sensores, GPU o módem.
+## Criterio de arranque aprobado
 
-Las pruebas de construcción y arranque deberán implementarse y conservar evidencia separada antes de declarar completada la Fase 1.
+Una prueba solo se aprueba cuando el registro permite verificar, en orden:
+
+1. ejecución del firmware UEFI;
+2. selección del cargador;
+3. inicio del kernel ARM64;
+4. montaje del sistema raíz;
+5. inicio de systemd;
+6. llegada a `multi-user.target`;
+7. apagado controlado.
+
+Una captura aislada, un archivo de imagen existente o un proceso QEMU en ejecución no son evidencia suficiente.
+
+## Reproducibilidad
+
+Dos construcciones se compararán únicamente cuando utilicen:
+
+- el mismo snapshot efectivo;
+- el mismo `SOURCE_DATE_EPOCH`;
+- las mismas versiones de herramientas;
+- las mismas opciones;
+- un entorno limpio equivalente.
+
+El criterio es igualdad exacta del SHA-256 de la imagen raw. Si los hashes difieren, se registra el resultado como no reproducible y se investiga antes de afirmar lo contrario.
+
+## Límites de CI
+
+El workflow actual no construye la imagen de 8 GiB ni arranca QEMU real. Su función es impedir errores estructurales, de shell y de contrato mientras se prepara un entorno de construcción Debian controlado.

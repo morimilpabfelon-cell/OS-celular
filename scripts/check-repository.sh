@@ -2,53 +2,75 @@
 
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-cd "$ROOT_DIR"
+case "$0" in
+    */*) SCRIPT_DIR=${0%/*} ;;
+    *) SCRIPT_DIR=. ;;
+esac
 
-fail() {
-    printf 'error: %s\n' "$*" >&2
-    exit 1
-}
+cd "$SCRIPT_DIR/.." || exit 1
+SKIP_SHELLCHECK=${SKIP_SHELLCHECK:-0}
 
-required_files='
-.github/workflows/validate.yml
-README.md
-CONTRIBUTING.md
-docs/ARCHITECTURE.md
-docs/ROADMAP.md
-docs/VALIDATION.md
-docs/adr/0001-debian-host-arch-executor.md
-scripts/check-repository.sh
-'
+case "$SKIP_SHELLCHECK" in
+    0|1) ;;
+    *)
+        printf 'error: SKIP_SHELLCHECK must be 0 or 1\n' >&2
+        exit 1
+        ;;
+esac
 
-printf '%s\n' "$required_files" |
-while IFS= read -r path; do
-    [ -n "$path" ] || continue
-    [ -f "$path" ] || fail "required file is missing: $path"
+for path in \
+    .github/workflows/validate.yml \
+    README.md \
+    CONTRIBUTING.md \
+    docs/ARCHITECTURE.md \
+    docs/ROADMAP.md \
+    docs/BUILDING.md \
+    docs/VALIDATION.md \
+    docs/adr/0001-debian-host-arch-executor.md \
+    docs/adr/0002-qemu-arm64-validation-image.md \
+    scripts/build-qemu-arm64.sh \
+    scripts/run-qemu-arm64.sh \
+    scripts/check-repository.sh \
+    tests/shell/test-scripts.sh
+do
+    if [ ! -f "$path" ]; then
+        printf 'error: required file is missing: %s\n' "$path" >&2
+        exit 1
+    fi
 done
 
-find scripts -type f -name '*.sh' -print |
-while IFS= read -r script; do
-    sh -n "$script" || fail "shell syntax check failed: $script"
+for script in scripts/*.sh tests/shell/*.sh; do
+    if [ ! -f "$script" ]; then
+        continue
+    fi
+
+    if ! sh -n "$script"; then
+        printf 'error: shell syntax check failed: %s\n' "$script" >&2
+        exit 1
+    fi
 done
 
-if command -v shellcheck >/dev/null 2>&1; then
-    find scripts -type f -name '*.sh' -print |
-    while IFS= read -r script; do
-        shellcheck -s sh "$script" || fail "ShellCheck failed: $script"
-    done
-else
-    printf 'warning: shellcheck is not installed; only sh -n was executed\n' >&2
+if [ "$SKIP_SHELLCHECK" = 0 ]; then
+    if command -v shellcheck >/dev/null 2>&1; then
+        shellcheck -s sh scripts/*.sh tests/shell/*.sh
+    else
+        printf 'warning: shellcheck is not installed; only sh -n was executed\n' >&2
+    fi
 fi
 
-tracked_artifacts=$(git ls-files '*.raw' '*.qcow2' '*.img' '*.log' '*.sha256' '*.metadata')
-[ -z "$tracked_artifacts" ] || {
-    printf '%s\n' "$tracked_artifacts" >&2
-    fail "generated artifacts must not be tracked"
-}
+if git ls-files -- '*.raw' '*.qcow2' '*.img' '*.log' '*.sha256' '*.metadata' | grep -q .; then
+    git ls-files -- '*.raw' '*.qcow2' '*.img' '*.log' '*.sha256' '*.metadata' >&2
+    printf 'error: generated artifacts must not be tracked\n' >&2
+    exit 1
+fi
 
 git diff --check
-git show --check --oneline --no-renames HEAD >/dev/null
+
+if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+    git diff --check HEAD^ HEAD
+else
+    git show --check --root --oneline --no-renames HEAD >/dev/null
+fi
 
 printf 'Repository validation passed.\n'
 printf 'This result does not prove image construction or successful boot.\n'

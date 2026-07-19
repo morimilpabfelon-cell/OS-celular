@@ -23,12 +23,34 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
+          fetch-depth: 2
           persist-credentials: false
+          show-progress: false
 
       - name: Install ShellCheck
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends shellcheck
 
-      - name: Validate repository
+      - name: Validate POSIX syntax
+        run: find scripts tests -type f -name '*.sh' -exec sh -n {} \;
+
+      - name: ShellCheck repository validator
+        run: shellcheck -s sh scripts/check-repository.sh
+
+      - name: ShellCheck image builder
+        run: shellcheck -s sh scripts/build-qemu-arm64.sh
+
+      - name: ShellCheck QEMU runner
+        run: shellcheck -s sh scripts/run-qemu-arm64.sh
+
+      - name: ShellCheck contract tests
+        run: shellcheck -s sh tests/shell/test-scripts.sh
+
+      - name: Run shell contract tests
+        run: sh tests/shell/test-scripts.sh
+
+      - name: Validate repository policy
+        env:
+          SKIP_SHELLCHECK: '1'
         run: sh scripts/check-repository.sh

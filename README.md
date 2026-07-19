@@ -6,9 +6,9 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 0: definición técnica.**
+**Fase 1: base ARM64 de validación en desarrollo.**
 
-El repositorio todavía no contiene una imagen arrancable, kernel adaptado a un teléfono, interfaz móvil funcional ni soporte de hardware. Esos componentes solo se declararán implementados cuando existan código, artefactos reproducibles y pruebas registradas.
+La arquitectura fundacional está documentada. El repositorio contiene scripts iniciales para construir y arrancar una imagen Debian ARM64 en QEMU, pero todavía no existe evidencia registrada de un arranque completo hasta `multi-user.target`, ni soporte para un teléfono físico.
 
 ## Alcance
 
@@ -23,18 +23,23 @@ El repositorio todavía no contiene una imagen arrancable, kernel adaptado a un 
 
 - [Arquitectura](docs/ARCHITECTURE.md)
 - [Hoja de ruta](docs/ROADMAP.md)
+- [Construcción ARM64 en QEMU](docs/BUILDING.md)
+- [Estado y criterios de validación](docs/VALIDATION.md)
 - [ADR-0001: Debian Host y Arch Executor](docs/adr/0001-debian-host-arch-executor.md)
+- [ADR-0002: imagen Debian ARM64 para QEMU](docs/adr/0002-qemu-arm64-validation-image.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
 ## Primer objetivo verificable
 
-Construir una imagen Debian ARM64 reproducible que arranque en QEMU `virt`, alcance un estado operativo sin intervención manual y pueda iniciar un entorno Arch Linux ARM aislado. La prueba también deberá demostrar que un fallo del ejecutor Arch no impide que Debian continúe funcionando.
+Construir una imagen Debian ARM64 reproducible que arranque en QEMU `virt`, alcance `multi-user.target` sin intervención manual y produzca evidencia conservable de construcción y arranque.
 
 La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
 ## Desarrollo
 
-Después del commit inicial, los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
+Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
+
+La validación automática actual solo comprueba estructura, sintaxis y políticas del repositorio. No debe interpretarse como prueba de arranque.
 
 ## Licencia
 
