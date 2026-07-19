@@ -47,6 +47,21 @@ stat -c '%a' "$output_directory" > "$MORIMIL_MOCK_TEMP_MODE_LOG"
 printf 'morimil-contract-image\n' > "$output"
 MOCK_BUILD
 
+cat > "$MOCK_BIN/normalize-image" <<'MOCK_NORMALIZE'
+#!/bin/sh
+set -eu
+
+: "${MORIMIL_MOCK_NORMALIZE_LOG:?}"
+printf '%s\n' "$*" >> "$MORIMIL_MOCK_NORMALIZE_LOG"
+printf '%s\n' \
+    'format_version=1' \
+    'identifier_seed_sha256=mock-seed' \
+    'gpt_disk_uuid=11111111-1111-5111-8111-111111111111' \
+    'efi_partition_uuid=22222222-2222-5222-8222-222222222222' \
+    'root_partition_uuid=33333333-3333-5333-8333-333333333333' \
+    > "$2"
+MOCK_NORMALIZE
+
 cat > "$MOCK_BIN/qemu-system-aarch64" <<'MOCK_QEMU'
 #!/bin/sh
 set -eu
@@ -57,6 +72,7 @@ MOCK_QEMU
 
 chmod 0755 \
     "$MOCK_BIN/mmdebstrap-autopkgtest-build-qemu" \
+    "$MOCK_BIN/normalize-image" \
     "$MOCK_BIN/qemu-system-aarch64"
 
 printf 'contract: build success path\n'
@@ -64,6 +80,8 @@ env \
     PATH="$MOCK_BIN:$PATH" \
     MORIMIL_MOCK_BUILD_LOG="$BUILD_LOG" \
     MORIMIL_MOCK_TEMP_MODE_LOG="$TEST_TMP/temp-mode.log" \
+    MORIMIL_MOCK_NORMALIZE_LOG="$TEST_TMP/normalize.log" \
+    NORMALIZE_SCRIPT="$MOCK_BIN/normalize-image" \
     DEBIAN_SNAPSHOT=20260719T000000Z \
     SOURCE_DATE_EPOCH=1784419200 \
     IMAGE_SIZE=64M \
@@ -85,6 +103,11 @@ if [ ! -f "$TEST_BUILD/morimil-test.raw.metadata" ]; then
     exit 1
 fi
 
+if [ ! -f "$TEST_BUILD/morimil-test.raw.identifiers" ]; then
+    printf 'error: builder did not create the deterministic identifier manifest\n' >&2
+    exit 1
+fi
+
 (
     cd "$TEST_BUILD" || exit 1
     sha256sum -c morimil-test.raw.sha256
@@ -95,15 +118,21 @@ grep -Fqx -- '--arch=arm64' "$BUILD_LOG"
 grep -Fqx -- '--size=64M' "$BUILD_LOG"
 grep -Fqx -- '--mirror=http://snapshot.debian.org/archive/debian/20260719T000000Z/' "$BUILD_LOG"
 grep -Fqx -- '755' "$TEST_TMP/temp-mode.log"
+grep -Fq -- 'morimil-test.raw.identifiers' "$TEST_TMP/normalize.log"
+grep -Fqx -- 'format_version=3' "$TEST_BUILD/morimil-test.raw.metadata"
 grep -Fqx -- 'snapshot_requested=20260719T000000Z' "$TEST_BUILD/morimil-test.raw.metadata"
 grep -Fqx -- 'snapshot_transport=http_with_signed_release_verification' "$TEST_BUILD/morimil-test.raw.metadata"
 grep -Fqx -- 'source_date_epoch=1784419200' "$TEST_BUILD/morimil-test.raw.metadata"
+grep -Fqx -- 'identifiers_file=morimil-test.raw.identifiers' "$TEST_BUILD/morimil-test.raw.metadata"
+grep -Fqx -- 'gpt_disk_uuid=11111111-1111-5111-8111-111111111111' "$TEST_BUILD/morimil-test.raw.identifiers"
 
 printf 'contract: builder refuses overwrite\n'
 if env \
     PATH="$MOCK_BIN:$PATH" \
     MORIMIL_MOCK_BUILD_LOG="$TEST_TMP/overwrite-build.log" \
     MORIMIL_MOCK_TEMP_MODE_LOG="$TEST_TMP/overwrite-mode.log" \
+    MORIMIL_MOCK_NORMALIZE_LOG="$TEST_TMP/overwrite-normalize.log" \
+    NORMALIZE_SCRIPT="$MOCK_BIN/normalize-image" \
     DEBIAN_SNAPSHOT=20260719T000000Z \
     SOURCE_DATE_EPOCH=1784419200 \
     OUTPUT_IMAGE="$TEST_BUILD/morimil-test.raw" \
@@ -120,6 +149,8 @@ if env \
     PATH="$MOCK_BIN:$PATH" \
     MORIMIL_MOCK_BUILD_LOG="$TEST_TMP/invalid-build.log" \
     MORIMIL_MOCK_TEMP_MODE_LOG="$TEST_TMP/invalid-mode.log" \
+    MORIMIL_MOCK_NORMALIZE_LOG="$TEST_TMP/invalid-normalize.log" \
+    NORMALIZE_SCRIPT="$MOCK_BIN/normalize-image" \
     DEBIAN_SNAPSHOT=latest \
     SOURCE_DATE_EPOCH=1784419200 \
     OUTPUT_IMAGE="$TEST_BUILD/invalid.raw" \
