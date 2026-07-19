@@ -130,7 +130,7 @@ sha256sum "$HELPER" > "$BUILD_DIR/mmdebstrap-helper.sha256"
 {
     printf 'helper=%s\n' "$HELPER"
     printf 'helper_dependencies=%s\n' "$HELPER_DEPENDENCIES"
-    printf 'foreign_architectures=' 
+    printf 'foreign_architectures='
     dpkg --print-foreign-architectures | paste -sd, -
     grep -n -E 'dpkg-architecture|dpkg-checkbuilddeps|binutils-multiarch' "$HELPER" || true
 } > "$BUILD_DIR/mmdebstrap-helper-preflight.txt"
@@ -189,7 +189,7 @@ fi
     printf 'snapshot=%s\n' "$DEBIAN_SNAPSHOT"
     printf 'source_date_epoch=%s\n' "$SOURCE_DATE_EPOCH"
     printf 'binfmt_rule_file=%s\n' "$BINFMT_RULE_FILE"
-    printf 'foreign_architectures=' 
+    printf 'foreign_architectures='
     dpkg --print-foreign-architectures | paste -sd, -
     cat "$BINFMT_ENTRY"
     cat /etc/os-release
