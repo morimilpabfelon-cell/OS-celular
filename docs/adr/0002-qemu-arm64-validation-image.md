@@ -1,85 +1,100 @@
-# ADR-0002: Imagen de validación Debian ARM64 para QEMU
+# ADR-0002: Imagen Debian ARM64 de validación para QEMU
 
-- **Estado:** aceptado para Fase 1; implementación aún no validada
+- **Estado:** aceptado para Fase 1; ejecución real pendiente
 - **Fecha:** 2026-07-19
 - **Alcance:** laboratorio virtual; no es una imagen para teléfono físico
 
 ## Contexto
 
-Morimil OS necesita una primera plataforma reproducible donde validar el arranque de Debian ARM64 antes de seleccionar hardware móvil. QEMU ofrece la máquina genérica `virt`, diseñada para ejecutar sistemas invitados como Linux sin representar un dispositivo físico concreto.
+Morimil OS necesita validar el arranque de Debian ARM64 antes de seleccionar hardware móvil. QEMU ofrece la máquina genérica `virt`, diseñada para ejecutar Linux sin representar un dispositivo físico concreto.
 
-Debian 13 `trixie` soporta oficialmente `arm64`. El paquete Debian `mmdebstrap` incluye `mmdebstrap-autopkgtest-build-qemu`, que construye imágenes raw para QEMU mediante `mmdebstrap`, usa arranque EFI y puede producir resultados bit a bit reproducibles cuando se fija `SOURCE_DATE_EPOCH` y se usa un archivo Debian inmutable.
+Debian 13 `trixie` soporta `arm64`. `mmdebstrap-autopkgtest-build-qemu` puede crear imágenes raw, utiliza EFI y admite salida reproducible cuando se fijan un snapshot y `SOURCE_DATE_EPOCH`.
 
 ## Decisión
 
-Para la Fase 1 se utilizará:
+La Fase 1 utilizará:
 
-- Debian 13 `trixie` para arquitectura `arm64`;
-- `mmdebstrap-autopkgtest-build-qemu` como constructor inicial de la imagen raw;
-- un snapshot fechado de `snapshot.debian.org`, nunca un espejo flotante en una construcción declarada reproducible;
-- una ruta temporal cuyos directorios sean atravesables por el usuario aislado empleado por `mmdebstrap`;
+- Debian 13 `trixie` para `arm64`;
+- `mmdebstrap-autopkgtest-build-qemu`;
+- snapshot fechado de `snapshot.debian.org`;
+- `SOURCE_DATE_EPOCH` explícito;
 - QEMU `qemu-system-aarch64` con máquina `virt`;
-- CPU virtual explícita `cortex-a57`;
-- firmware UEFI AArch64 suministrado por el paquete Debian `qemu-efi-aarch64`;
-- disco VirtIO y consola serie sin interfaz gráfica para la primera validación;
-- aceleración TCG fija durante la primera prueba;
-- red desactivada durante la prueba básica de arranque;
-- checksum obligatorio antes del arranque, salvo una excepción explícita y visible.
+- CPU virtual `cortex-a57`;
+- firmware AAVMF del paquete Debian `qemu-efi-aarch64`;
+- disco VirtIO, TCG y consola serie;
+- red desactivada;
+- checksum obligatorio antes del arranque;
+- instrumentación temporal mediante la opción `--script`.
 
-KVM se excluye de la Fase 1 inicial porque depende de un anfitrión ARM64 compatible y requiere una ruta de CPU distinta. Se evaluará en una decisión posterior después de demostrar el arranque con TCG.
+La instrumentación instala un timer de systemd. Después de su activación, un servicio comprueba que `multi-user.target` esté realmente activo, imprime una marca estructurada en `/dev/console` y solicita el apagado.
 
-La imagen generada por esta fase es únicamente un **artefacto de validación de plataforma**. No define el formato final de actualización, particionado, recuperación ni seguridad de Morimil OS.
+## Entorno de CI
 
-## Reproducibilidad
+La primera ejecución automatizada real utilizará un contenedor oficial Debian fechado sobre un runner Linux de GitHub Actions.
 
-Una construcción solo podrá denominarse reproducible cuando registre como mínimo:
+El contenedor requiere modo privilegiado para habilitar `binfmt_misc` durante la construcción cruzada `amd64` → `arm64`. Esta excepción está limitada por las siguientes reglas:
 
-1. marca temporal solicitada y marca efectiva del snapshot Debian;
-2. `SOURCE_DATE_EPOCH`;
-3. versión de `mmdebstrap`;
-4. versión de QEMU;
-5. versión del firmware `qemu-efi-aarch64`;
-6. SHA-256 de la imagen resultante;
-7. registro completo de construcción y arranque.
+- no se exponen secretos;
+- el repositorio se monta de solo lectura;
+- solo `build/` permite escritura;
+- las herramientas se instalan desde el snapshot fijado;
+- se registra el digest real del contenedor;
+- la VM no tiene red;
+- la imagen raw no se publica.
 
-El script fallará si no se entrega una marca temporal de snapshot. No se usará silenciosamente `stable`, `latest` ni un espejo flotante.
+La ejecución privilegiada es una decisión de laboratorio, no una arquitectura del producto.
 
 ## Criterio de aceptación
 
-La Fase 1 no queda validada por crear un archivo de imagen. Debe existir evidencia de que:
+La Fase 1 no queda validada por crear un archivo raw. Debe existir evidencia de que:
 
-- UEFI encuentra el cargador;
-- el kernel ARM64 inicia;
-- systemd alcanza `multi-user.target`;
-- la consola serie permanece operativa;
-- la máquina se apaga de manera controlada;
-- el SHA-256 y el registro de la ejecución quedan archivados;
-- dos construcciones equivalentes producen el mismo SHA-256 antes de afirmar reproducibilidad bit a bit.
+1. la construcción termina correctamente;
+2. el checksum de la imagen es válido;
+3. UEFI encuentra el cargador;
+4. el kernel ARM64 inicia;
+5. systemd activa `multi-user.target`;
+6. la consola contiene `MORIMIL_BOOT_PROOF target=multi-user.target state=active`;
+7. la VM se apaga y QEMU termina con código 0;
+8. versiones, logs, metadata y checksum quedan archivados.
 
-## Consecuencias
+La reproducibilidad bit a bit requiere además dos construcciones independientes con SHA-256 idéntico.
 
-### Positivas
+## Consecuencias positivas
 
-- separa el desarrollo del sistema base de los problemas específicos de un teléfono;
-- evita depender inicialmente de bootloaders o controladores propietarios;
-- permite automatizar pruebas de arranque;
-- obliga a distinguir una VM funcional de un sistema móvil funcional;
-- evita arrancar silenciosamente una imagen sin verificar;
-- elimina una ruta KVM no probada durante la primera validación.
+- separa fallos de arquitectura de problemas de hardware móvil;
+- produce evidencia legible por máquina;
+- evita confundir un login visible con una prueba formal del target;
+- conserva entradas y versiones del entorno;
+- no almacena imágenes pesadas en GitHub.
 
-### Limitaciones
+## Riesgos y límites
 
-- QEMU `virt` no prueba pantalla táctil, batería, suspensión móvil, módem, cámara, sensores ni GPU de un teléfono;
-- la imagen de autopkgtest contiene decisiones orientadas a pruebas y deberá sustituirse por un constructor propio antes de una imagen de producto;
-- el rendimiento bajo emulación TCG no representa el rendimiento de hardware ARM64 real;
-- la validación estática de CI no demuestra construcción ni arranque.
+- QEMU `virt` no prueba hardware telefónico;
+- TCG no representa rendimiento real;
+- el contenedor privilegiado amplía la superficie del runner de CI;
+- el constructor de autopkgtest es un artefacto de validación, no el formato final de Morimil OS;
+- una construcción exitosa no demuestra reproducibilidad;
+- la instrumentación de apagado debe eliminarse de cualquier imagen de producto.
+
+## Alternativas descartadas
+
+### Usar Ubuntu como entorno de referencia
+
+Se descarta para la prueba de referencia porque las versiones de `mmdebstrap` y herramientas pueden diferir de Debian 13. Ubuntu puede servir para validación estática, no para afirmar una construcción Debian controlada.
+
+### Subir la imagen raw como artefacto
+
+Se descarta por tamaño y porque los logs, metadata y SHA-256 son suficientes para auditar la ejecución inicial. La imagen podrá almacenarse posteriormente en una infraestructura de releases con política explícita.
+
+### Considerar el prompt de login como éxito
+
+Se descarta porque no prueba de forma explícita el estado de `multi-user.target` ni un apagado controlado.
 
 ## Fuentes primarias
 
-- Debian 13 `trixie`: https://www.debian.org/releases/trixie/
-- Guía Debian para ARM64: https://www.debian.org/releases/stable/arm64/
-- Paquete `mmdebstrap`: https://packages.debian.org/trixie/mmdebstrap
-- Manual `mmdebstrap-autopkgtest-build-qemu`: https://manpages.debian.org/trixie/mmdebstrap/mmdebstrap-autopkgtest-build-qemu.1.en.html
-- QEMU `virt`: https://www.qemu.org/docs/master/system/arm/virt.html
-- Firmware UEFI AArch64 de Debian: https://packages.debian.org/trixie/qemu-efi-aarch64
-- Archivo histórico Debian: https://snapshot.debian.org/
+- https://www.debian.org/releases/stable/arm64/
+- https://manpages.debian.org/trixie/mmdebstrap/mmdebstrap-autopkgtest-build-qemu.1.en.html
+- https://snapshot.debian.org/
+- https://www.qemu.org/docs/master/system/arm/virt.html
+- https://packages.debian.org/trixie/qemu-efi-aarch64
+- https://docs.github.com/en/actions/tutorials/store-and-share-data
