@@ -118,6 +118,8 @@ jobs:
             build/boot.log
             build/container-image.txt
             build/environment.txt
+            build/mmdebstrap-helper-preflight.txt
+            build/mmdebstrap-helper.sha256
             build/morimil-trixie-arm64.raw.metadata
             build/morimil-trixie-arm64.raw.sha256
             build/validation-status.txt
