@@ -2,86 +2,105 @@
 
 ## Propósito
 
-Este documento separa las comprobaciones automáticas de las afirmaciones técnicas que todavía requieren una ejecución real. Un resultado verde de CI no convierte una imagen en arrancable ni demuestra compatibilidad con un teléfono.
+Este documento separa pruebas estáticas, contratos simulados y ejecución real. Ninguna prueba debe presentarse como más fuerte de lo que demuestra.
 
-## Estado actual
+## Matriz de estado
 
 | Capacidad | Estado | Evidencia exigida |
 |---|---|---|
 | Estructura del repositorio | Automatizada | workflow `Repository validation` |
-| Sintaxis POSIX de scripts | Automatizada | `sh -n` y ShellCheck |
-| Contratos del constructor y QEMU | Automatizados con mocks | `tests/shell/test-scripts.sh` |
-| Ausencia de imágenes generadas en Git | Automatizada | revisión de archivos rastreados |
-| Construcción Debian ARM64 real | No validada | log completo y artefactos |
-| Arranque UEFI real | No validado | consola serie |
-| Carga del kernel ARM64 | No validada | consola serie |
-| Llegada a `multi-user.target` | No validada | consola y estado de systemd |
+| Sintaxis POSIX | Automatizada | `sh -n` |
+| Análisis de shell | Automatizado | ShellCheck |
+| Contratos del constructor y QEMU | Automatizados con mocks | `tests/shell/*.sh` |
+| Construcción Debian ARM64 real | En integración | `build.log`, checksum y metadata |
+| Arranque UEFI real | En integración | `boot.log` |
+| Kernel y systemd | En integración | consola serie |
+| `multi-user.target` activo | En integración | marca `MORIMIL_BOOT_PROOF` |
+| Apagado controlado | En integración | salida 0 de QEMU |
 | Reproducibilidad bit a bit | No validada | dos SHA-256 idénticos |
 | Soporte de teléfono físico | No iniciado | matriz por componente |
 
-## Validación local del repositorio
+## Pruebas estáticas
 
 ```sh
-sudo apt install shellcheck
 sh scripts/check-repository.sh
-sh tests/shell/test-scripts.sh
 ```
 
-La comprobación local valida archivos, sintaxis, ShellCheck cuando está disponible, diferencias inválidas y que no se hayan añadido imágenes o registros generados.
+Comprueban:
 
-Las pruebas contractuales sustituyen `mmdebstrap-autopkgtest-build-qemu` y `qemu-system-aarch64` por ejecutables controlados. Comprueban que los scripts:
+- archivos obligatorios;
+- sintaxis POSIX;
+- ShellCheck cuando está disponible;
+- ausencia de imágenes y logs rastreados por Git;
+- whitespace y parche del commit.
 
-- transmiten las opciones ARM64, EFI, snapshot y TCG esperadas;
-- crean checksum y metadata;
-- usan un directorio temporal atravesable;
-- rechazan snapshots mal formados y sobrescrituras accidentales;
-- exigen checksum antes del arranque;
-- conservan la red desactivada y el modo snapshot;
-- rechazan recursos inválidos y protegen la plantilla de variables UEFI.
+## Pruebas contractuales
 
-Estas pruebas no descargan Debian, no producen una imagen válida y no ejecutan QEMU real.
+```sh
+for test_script in tests/shell/*.sh; do
+    sh "$test_script"
+done
+```
 
-## Evidencia de construcción
+Usan ejecutables simulados para verificar:
 
-Cada ejecución real debe conservar como mínimo:
+- opciones EFI, ARM64, snapshot y script de personalización;
+- permisos `0755` del directorio temporal;
+- checksum y metadata;
+- rechazo de sobrescritura accidental;
+- aislamiento de QEMU y red desactivada;
+- validación de recursos y firmware;
+- instalación segura de la instrumentación de arranque;
+- aceptación y rechazo correctos del verificador de logs.
+
+No descargan paquetes ni prueban un kernel.
+
+## Prueba real de arranque
+
+La imagen de validación instala un timer de systemd. Cuando se activa, el servicio comprueba:
+
+```sh
+systemctl is-active --quiet multi-user.target
+```
+
+Solo después imprime en `/dev/console`:
+
+```text
+MORIMIL_BOOT_PROOF target=multi-user.target state=active
+```
+
+El verificador exige esa marca exacta y rechaza tanto su ausencia como `MORIMIL_BOOT_PROOF_FAILED`.
+
+## Evidencia conservada
+
+Una ejecución real debe conservar:
 
 ```text
 build/
-├── morimil-trixie-arm64.raw
+├── build.log
+├── boot.log
+├── container-image.txt
+├── environment.txt
 ├── morimil-trixie-arm64.raw.sha256
 ├── morimil-trixie-arm64.raw.metadata
-├── build.log
-└── boot.log
+└── validation-status.txt
 ```
 
-La imagen no debe subirse al repositorio Git. Los logs y artefactos se conservarán como artefactos de CI o en almacenamiento de pruebas cuando esa infraestructura esté definida.
-
-## Criterio de arranque aprobado
-
-Una prueba solo se aprueba cuando el registro permite verificar, en orden:
-
-1. ejecución del firmware UEFI;
-2. selección del cargador;
-3. inicio del kernel ARM64;
-4. montaje del sistema raíz;
-5. inicio de systemd;
-6. llegada a `multi-user.target`;
-7. apagado controlado.
-
-Una captura aislada, un archivo de imagen existente o un proceso QEMU en ejecución no son evidencia suficiente.
+La imagen raw no se sube a Git ni a los artefactos de CI. El checksum permite identificarla sin consumir almacenamiento innecesario.
 
 ## Reproducibilidad
 
-Dos construcciones se compararán únicamente cuando utilicen:
+Solo se compararán dos construcciones cuando coincidan:
 
-- el mismo snapshot efectivo;
-- el mismo `SOURCE_DATE_EPOCH`;
-- las mismas versiones de herramientas;
-- las mismas opciones;
-- un entorno limpio equivalente.
+- snapshot solicitado;
+- `SOURCE_DATE_EPOCH`;
+- digest del contenedor;
+- versiones de herramientas;
+- script de personalización y su SHA-256;
+- tamaño y opciones de imagen.
 
-El criterio es igualdad exacta del SHA-256 de la imagen raw. Si los hashes difieren, se registra el resultado como no reproducible y se investiga antes de afirmar lo contrario.
+La igualdad exacta de SHA-256 es obligatoria. Un solo build exitoso demuestra construcción y arranque, no reproducibilidad bit a bit.
 
-## Límites de CI
+## Límites
 
-El workflow actual no construye la imagen de 8 GiB ni arranca QEMU real. Su función es impedir errores estructurales, de shell y de contrato mientras se prepara un entorno de construcción Debian controlado.
+QEMU `virt` no representa un teléfono. Incluso una ejecución completamente verde no demuestra pantalla táctil, batería, suspensión móvil, módem, cámara, sensores, GPU ni consumo energético.
