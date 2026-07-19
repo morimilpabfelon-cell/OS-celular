@@ -58,11 +58,11 @@ case "$1" in
     --part-type)
         partition=$3
         if [ "${MORIMIL_MOCK_BAD_LAYOUT:-0}" = 1 ] && [ "$partition" = 1 ]; then
-            printf '%s\n' 'B921B045-1DF0-41C3-AF44-4C6F280D3FAE'
+            printf '%s\n' '0FC63DAF-8483-4772-8E79-3D69D8477DE4'
         elif [ "$partition" = 1 ]; then
             printf '%s\n' 'C12A7328-F81F-11D2-BA4B-00A0C93EC93B'
         elif [ "$partition" = 2 ]; then
-            printf '%s\n' 'B921B045-1DF0-41C3-AF44-4C6F280D3FAE'
+            printf '%s\n' '0FC63DAF-8483-4772-8E79-3D69D8477DE4'
         else
             exit 91
         fi
@@ -114,7 +114,9 @@ env \
     > "$TEST_TMP/normalize-1.out"
 
 grep -Fqx -- 'gpt_disk_uuid=11111111-1111-5111-8111-111111111111' "$TEST_TMP/identifiers-1.txt"
+grep -Fqx -- 'efi_partition_type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B' "$TEST_TMP/identifiers-1.txt"
 grep -Fqx -- 'efi_partition_uuid=22222222-2222-5222-8222-222222222222' "$TEST_TMP/identifiers-1.txt"
+grep -Fqx -- 'root_partition_type=0FC63DAF-8483-4772-8E79-3D69D8477DE4' "$TEST_TMP/identifiers-1.txt"
 grep -Fqx -- 'root_partition_uuid=33333333-3333-5333-8333-333333333333' "$TEST_TMP/identifiers-1.txt"
 grep -Fqx -- '--disk-id '"$IMAGE"' 11111111-1111-5111-8111-111111111111' "$MOCK_LOG"
 grep -Fqx -- '--part-uuid '"$IMAGE"' 1 22222222-2222-5222-8222-222222222222' "$MOCK_LOG"
