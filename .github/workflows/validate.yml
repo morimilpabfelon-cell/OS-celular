@@ -1,7 +1,13 @@
 name: Repository validation
 
 on:
+  workflow_dispatch:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
   push:
     branches:
       - main
@@ -38,11 +44,20 @@ jobs:
       - name: ShellCheck repository validator
         run: shellcheck -s sh scripts/check-repository.sh
 
+      - name: ShellCheck CI build driver
+        run: shellcheck -s sh scripts/ci-build-arm64.sh
+
       - name: ShellCheck image builder
         run: shellcheck -s sh scripts/build-qemu-arm64.sh
 
+      - name: ShellCheck image customization
+        run: shellcheck -s sh scripts/configure-validation-image.sh
+
       - name: ShellCheck QEMU runner
         run: shellcheck -s sh scripts/run-qemu-arm64.sh
+
+      - name: ShellCheck boot verifier
+        run: shellcheck -s sh scripts/verify-boot-log.sh
 
       - name: ShellCheck contract tests
         run: shellcheck -s sh tests/shell/test-scripts.sh
@@ -54,3 +69,67 @@ jobs:
         env:
           SKIP_SHELLCHECK: '1'
         run: sh scripts/check-repository.sh
+
+  arm64-build:
+    name: Debian 13 ARM64 real build and boot
+    needs: static
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.body, '<!-- run-arm64-build -->')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      DEBIAN_CONTAINER_IMAGE: debian:trixie-20260623
+      DEBIAN_SNAPSHOT: 20260718T000000Z
+      SOURCE_DATE_EPOCH: '1784332800'
+      IMAGE_SIZE: 4G
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          show-progress: false
+
+      - name: Pull and record Debian build environment
+        run: |
+          set -eu
+          mkdir -p build
+          docker pull "$DEBIAN_CONTAINER_IMAGE"
+          docker image inspect \
+            --format '{{index .RepoDigests 0}}' \
+            "$DEBIAN_CONTAINER_IMAGE" > build/container-image.txt
+          cat build/container-image.txt
+
+      - name: Build and boot Debian ARM64 in QEMU
+        run: |
+          set -eu
+          docker run --rm --privileged \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --volume "$GITHUB_WORKSPACE/build:/workspace/build:rw" \
+            --workdir /workspace \
+            --env DEBIAN_CONTAINER_IMAGE \
+            --env DEBIAN_SNAPSHOT \
+            --env SOURCE_DATE_EPOCH \
+            --env IMAGE_SIZE \
+            --env BUILD_DIR=/workspace/build \
+            --env OUTPUT_IMAGE=/workspace/build/morimil-trixie-arm64.raw \
+            "$DEBIAN_CONTAINER_IMAGE" \
+            sh scripts/ci-build-arm64.sh
+
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morimil-arm64-validation-${{ github.run_id }}
+          path: |
+            build/build.log
+            build/boot.log
+            build/container-image.txt
+            build/environment.txt
+            build/morimil-trixie-arm64.raw.metadata
+            build/morimil-trixie-arm64.raw.sha256
+            build/validation-status.txt
+          if-no-files-found: warn
+          retention-days: 7
