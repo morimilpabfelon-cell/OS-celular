@@ -31,12 +31,14 @@ for path in \
     scripts/build-qemu-arm64.sh \
     scripts/ci-build-arm64.sh \
     scripts/configure-validation-image.sh \
+    scripts/fingerprint-qemu-image.sh \
     scripts/normalize-qemu-image.sh \
     scripts/run-qemu-arm64.sh \
     scripts/verify-boot-log.sh \
     scripts/check-repository.sh \
     tests/shell/test-scripts.sh \
     tests/shell/test-boot-proof.sh \
+    tests/shell/test-image-fingerprints.sh \
     tests/shell/test-image-normalization.sh
 do
     if [ ! -f "$path" ]; then
