@@ -93,9 +93,10 @@ fi
 grep -Fqx -- '--boot=efi' "$BUILD_LOG"
 grep -Fqx -- '--arch=arm64' "$BUILD_LOG"
 grep -Fqx -- '--size=64M' "$BUILD_LOG"
-grep -Fqx -- '--mirror=https://snapshot.debian.org/archive/debian/20260719T000000Z/' "$BUILD_LOG"
+grep -Fqx -- '--mirror=http://snapshot.debian.org/archive/debian/20260719T000000Z/' "$BUILD_LOG"
 grep -Fqx -- '755' "$TEST_TMP/temp-mode.log"
 grep -Fqx -- 'snapshot_requested=20260719T000000Z' "$TEST_BUILD/morimil-test.raw.metadata"
+grep -Fqx -- 'snapshot_transport=http_with_signed_release_verification' "$TEST_BUILD/morimil-test.raw.metadata"
 grep -Fqx -- 'source_date_epoch=1784419200' "$TEST_BUILD/morimil-test.raw.metadata"
 
 printf 'contract: builder refuses overwrite\n'
