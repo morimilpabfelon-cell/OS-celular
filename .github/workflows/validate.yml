@@ -122,6 +122,7 @@ jobs:
             build/guest-apt-sources.sha256
             build/mmdebstrap-helper-preflight.txt
             build/mmdebstrap-helper.sha256
+            build/morimil-trixie-arm64.raw.identifiers
             build/morimil-trixie-arm64.raw.metadata
             build/morimil-trixie-arm64.raw.sha256
             build/validation-status.txt
