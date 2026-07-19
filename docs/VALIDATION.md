@@ -12,6 +12,7 @@ Este documento separa pruebas estáticas, contratos simulados y ejecución real.
 | Sintaxis POSIX | Automatizada | `sh -n` |
 | Análisis de shell | Automatizado | ShellCheck |
 | Contratos del constructor y QEMU | Automatizados con mocks | `tests/shell/*.sh` |
+| Fuentes APT del invitado fijadas | Automatizada | archivo deb822 y SHA-256 |
 | Construcción Debian ARM64 real | En integración | `build.log`, checksum y metadata |
 | Arranque UEFI real | En integración | `boot.log` |
 | Kernel y systemd | En integración | consola serie |
@@ -45,6 +46,7 @@ done
 Usan ejecutables simulados para verificar:
 
 - opciones EFI, ARM64, snapshot y script de personalización;
+- transporte HTTP hacia Debian Snapshot con verificación de Release firmada;
 - permisos `0755` del directorio temporal;
 - checksum y metadata;
 - rechazo de sobrescritura accidental;
@@ -54,6 +56,22 @@ Usan ejecutables simulados para verificar:
 - aceptación y rechazo correctos del verificador de logs.
 
 No descargan paquetes ni prueban un kernel.
+
+## Control de fuentes APT
+
+La ejecución real entrega a autopkgtest dos fuentes deb822 fijadas al mismo timestamp solicitado:
+
+- archivo principal `debian`;
+- archivo de seguridad `debian-security`.
+
+No se permite que `setup-testbed` introduzca `security.debian.org` ni otro repositorio vivo. La configuración usa `Check-Valid-Until: no` porque Debian Snapshot es un archivo histórico, pero mantiene `Signed-By` con el keyring oficial.
+
+La evidencia incluye el contenido exacto y su SHA-256:
+
+```text
+build/guest-apt-sources.sources
+build/guest-apt-sources.sha256
+```
 
 ## Prueba real de arranque
 
@@ -79,8 +97,13 @@ Una ejecución real debe conservar:
 build/
 ├── build.log
 ├── boot.log
+├── ci.log
 ├── container-image.txt
 ├── environment.txt
+├── guest-apt-sources.sources
+├── guest-apt-sources.sha256
+├── mmdebstrap-helper-preflight.txt
+├── mmdebstrap-helper.sha256
 ├── morimil-trixie-arm64.raw.sha256
 ├── morimil-trixie-arm64.raw.metadata
 └── validation-status.txt
@@ -96,6 +119,7 @@ Solo se compararán dos construcciones cuando coincidan:
 - `SOURCE_DATE_EPOCH`;
 - digest del contenedor;
 - versiones de herramientas;
+- fuentes APT y su SHA-256;
 - script de personalización y su SHA-256;
 - tamaño y opciones de imagen.
 
