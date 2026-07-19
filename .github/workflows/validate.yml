@@ -41,29 +41,18 @@ jobs:
       - name: Validate POSIX syntax
         run: find scripts tests -type f -name '*.sh' -exec sh -n {} \;
 
-      - name: ShellCheck repository validator
-        run: shellcheck -s sh scripts/check-repository.sh
-
-      - name: ShellCheck CI build driver
-        run: shellcheck -s sh scripts/ci-build-arm64.sh
-
-      - name: ShellCheck image builder
-        run: shellcheck -s sh scripts/build-qemu-arm64.sh
-
-      - name: ShellCheck image customization
-        run: shellcheck -s sh scripts/configure-validation-image.sh
-
-      - name: ShellCheck QEMU runner
-        run: shellcheck -s sh scripts/run-qemu-arm64.sh
-
-      - name: ShellCheck boot verifier
-        run: shellcheck -s sh scripts/verify-boot-log.sh
+      - name: ShellCheck repository scripts
+        run: shellcheck -s sh scripts/*.sh
 
       - name: ShellCheck contract tests
-        run: shellcheck -s sh tests/shell/test-scripts.sh
+        run: shellcheck -s sh tests/shell/*.sh
 
       - name: Run shell contract tests
-        run: sh tests/shell/test-scripts.sh
+        run: |
+          set -eu
+          for test_script in tests/shell/*.sh; do
+            sh "$test_script"
+          done
 
       - name: Validate repository policy
         env:
