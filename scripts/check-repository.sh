@@ -29,7 +29,10 @@ for path in \
     docs/adr/0001-debian-host-arch-executor.md \
     docs/adr/0002-qemu-arm64-validation-image.md \
     scripts/build-qemu-arm64.sh \
+    scripts/ci-build-arm64.sh \
+    scripts/configure-validation-image.sh \
     scripts/run-qemu-arm64.sh \
+    scripts/verify-boot-log.sh \
     scripts/check-repository.sh \
     tests/shell/test-scripts.sh
 do
