@@ -26,22 +26,34 @@ sudo apt update
 sudo apt install \
     arch-test \
     autopkgtest \
-    binfmt-support \
+    binutils-multiarch \
     ca-certificates \
+    dpkg-dev \
+    e2fsprogs \
     mmdebstrap \
+    mount \
     qemu-efi-aarch64 \
     qemu-system-arm \
-    qemu-user-static \
+    qemu-user-binfmt \
     qemu-utils \
     shellcheck
 ```
 
-Para una construcción cruzada `amd64` → `arm64`, debe estar habilitado `qemu-aarch64` en `binfmt_misc`:
+`dpkg-dev` aporta `dpkg-architecture` y `dpkg-checkbuilddeps`; `binutils-multiarch` aporta utilidades binarias multi-arquitectura; `e2fsprogs` aporta las herramientas ext4 usadas por el constructor.
+
+Para una construcción cruzada `amd64` → `arm64`, Debian 13 instala la regla oficial en:
+
+```text
+/usr/lib/binfmt.d/qemu-aarch64.conf
+```
+
+En un sistema arrancado con systemd, `systemd-binfmt` procesa esa regla. El controlador de CI trabaja dentro de un contenedor privilegiado sin systemd: monta `binfmt_misc`, registra exclusivamente esa regla oficial y exige que:
 
 ```sh
-sudo update-binfmts --enable qemu-aarch64
-update-binfmts --display qemu-aarch64
+arch-test arm64
 ```
+
+termine correctamente antes de iniciar `mmdebstrap`.
 
 ## Validar scripts antes de construir
 
@@ -140,6 +152,8 @@ El workflow `Repository validation` contiene un job `Debian 13 ARM64 real build 
 
 El job utiliza la imagen oficial fechada `debian:trixie-20260623`, registra su digest real, cambia APT al snapshot fijado, instala herramientas desde ese snapshot y ejecuta la construcción y el arranque con TCG.
 
+Antes de construir, el job conserva la huella SHA-256 del helper oficial y un extracto de su prevalidación de dependencias.
+
 El contenedor se ejecuta con privilegios porque la construcción cruzada necesita `binfmt_misc` y operaciones de imagen. Para reducir superficie:
 
 - no recibe secretos;
@@ -153,8 +167,11 @@ Se conservan durante siete días:
 ```text
 build.log
 boot.log
+ci.log
 container-image.txt
 environment.txt
+mmdebstrap-helper-preflight.txt
+mmdebstrap-helper.sha256
 morimil-trixie-arm64.raw.metadata
 morimil-trixie-arm64.raw.sha256
 validation-status.txt
@@ -162,6 +179,11 @@ validation-status.txt
 
 ## Fuentes primarias
 
+- https://packages.debian.org/trixie/mmdebstrap
+- https://sources.debian.org/src/mmdebstrap/1.5.7-1%2Bdeb13u1/debian/control
+- https://packages.debian.org/trixie/dpkg-dev
+- https://packages.debian.org/trixie/binutils-multiarch
+- https://packages.debian.org/trixie/e2fsprogs
 - https://manpages.debian.org/trixie/mmdebstrap/mmdebstrap-autopkgtest-build-qemu.1.en.html
 - https://snapshot.debian.org/
 - https://www.qemu.org/docs/master/system/arm/virt.html
