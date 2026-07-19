@@ -34,7 +34,8 @@ for path in \
     scripts/run-qemu-arm64.sh \
     scripts/verify-boot-log.sh \
     scripts/check-repository.sh \
-    tests/shell/test-scripts.sh
+    tests/shell/test-scripts.sh \
+    tests/shell/test-boot-proof.sh
 do
     if [ ! -f "$path" ]; then
         printf 'error: required file is missing: %s\n' "$path" >&2
