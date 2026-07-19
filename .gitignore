@@ -1,0 +1,16 @@
+# Generated build artifacts
+/build/*
+!/build/.gitkeep
+
+# Images and virtual disks
+*.raw
+*.qcow2
+*.img
+
+# Local evidence and metadata
+*.log
+*.sha256
+*.metadata
+
+# QEMU runtime firmware variables
+AAVMF_VARS.fd
