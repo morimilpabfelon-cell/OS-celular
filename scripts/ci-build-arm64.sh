@@ -12,6 +12,7 @@ BUILD_DIR=${BUILD_DIR:-"$SCRIPT_DIR/../build"}
 OUTPUT_IMAGE=${OUTPUT_IMAGE:-"$BUILD_DIR/morimil-trixie-arm64.raw"}
 IMAGE_SIZE=${IMAGE_SIZE:-4G}
 DEBIAN_CONTAINER_IMAGE=${DEBIAN_CONTAINER_IMAGE:-unknown}
+HELPER=/usr/bin/mmdebstrap-autopkgtest-build-qemu
 
 if [ "$(id -u)" -ne 0 ]; then
     printf 'error: ci-build-arm64.sh must run as root inside the disposable Debian container\n' >&2
@@ -61,14 +62,55 @@ apt-get -o Acquire::Check-Valid-Until=false update
 apt-get install --yes --no-install-recommends \
     arch-test \
     autopkgtest \
+    binutils-multiarch \
     ca-certificates \
     coreutils \
+    dpkg-dev \
+    e2fsprogs \
     mmdebstrap \
     mount \
     qemu-efi-aarch64 \
     qemu-system-arm \
     qemu-user-binfmt \
     qemu-utils
+
+for required_command in \
+    dpkg-architecture \
+    dpkg-checkbuilddeps \
+    mke2fs \
+    qemu-img \
+    qemu-system-aarch64 \
+    sha256sum
+do
+    if ! command -v "$required_command" >/dev/null 2>&1; then
+        printf 'error: required helper command not found: %s\n' "$required_command" >&2
+        exit 1
+    fi
+done
+
+for required_package in \
+    binutils-multiarch \
+    dpkg-dev \
+    e2fsprogs \
+    mmdebstrap
+do
+    package_status=$(dpkg-query -W -f='${db:Status-Status}' "$required_package" 2>/dev/null || true)
+    if [ "$package_status" != installed ]; then
+        printf 'error: required helper package is not installed: %s\n' "$required_package" >&2
+        exit 1
+    fi
+done
+
+if [ ! -x "$HELPER" ]; then
+    printf 'error: Debian QEMU image helper is not executable: %s\n' "$HELPER" >&2
+    exit 1
+fi
+
+sha256sum "$HELPER" > "$BUILD_DIR/mmdebstrap-helper.sha256"
+{
+    printf 'helper=%s\n' "$HELPER"
+    grep -n -E 'dpkg-architecture|dpkg-checkbuilddeps|binutils-multiarch' "$HELPER" || true
+} > "$BUILD_DIR/mmdebstrap-helper-preflight.txt"
 
 BINFMT_DIRECTORY=/proc/sys/fs/binfmt_misc
 BINFMT_REGISTER=$BINFMT_DIRECTORY/register
@@ -129,8 +171,11 @@ fi
     mmdebstrap --version
     qemu-system-aarch64 --version | head -n 1
     dpkg-query -W \
-        mmdebstrap \
         autopkgtest \
+        binutils-multiarch \
+        dpkg-dev \
+        e2fsprogs \
+        mmdebstrap \
         qemu-efi-aarch64 \
         qemu-system-arm \
         qemu-user \
