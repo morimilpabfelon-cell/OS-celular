@@ -6,7 +6,7 @@ export LC_ALL=C
 
 IMAGE=${1:-}
 OUTPUT=${2:-}
-SECTOR_SIZE=512
+EXPECTED_SECTOR_SIZE=512
 
 if [ -z "$IMAGE" ] || [ -z "$OUTPUT" ]; then
     printf 'usage: %s IMAGE OUTPUT\n' "$0" >&2
@@ -18,7 +18,7 @@ if [ ! -f "$IMAGE" ] || [ ! -r "$IMAGE" ]; then
     exit 1
 fi
 
-for required_command in dd sfdisk sha256sum stat tr; do
+for required_command in dd jq sfdisk sha256sum stat tr; do
     if ! command -v "$required_command" >/dev/null 2>&1; then
         printf 'error: required fingerprint command not found: %s\n' "$required_command" >&2
         exit 1
@@ -44,7 +44,7 @@ hash_sectors() {
     label=$1
     start=$2
     count=$3
-    digest=$(dd if="$IMAGE" bs=$SECTOR_SIZE skip="$start" count="$count" status=none | sha256sum)
+    digest=$(dd if="$IMAGE" bs=$EXPECTED_SECTOR_SIZE skip="$start" count="$count" status=none | sha256sum)
     digest=${digest%% *}
     printf '%s_start_sector=%s\n' "$label" "$start"
     printf '%s_sector_count=%s\n' "$label" "$count"
@@ -65,22 +65,57 @@ hash_bytes() {
 image_size_bytes=$(stat -c '%s' "$IMAGE")
 require_unsigned_integer "$image_size_bytes" image_size_bytes
 
-if [ $((image_size_bytes % SECTOR_SIZE)) -ne 0 ]; then
-    printf 'error: image size is not divisible by %s bytes: %s\n' \
-        "$SECTOR_SIZE" "$image_size_bytes" >&2
+layout_json=$(sfdisk --json "$IMAGE")
+partition_label=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.label')
+partition_unit=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.unit')
+sector_size=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.sectorsize')
+partition_count=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions | length')
+efi_start=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[0].start')
+efi_size=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[0].size')
+root_start=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[1].start')
+root_size=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[1].size')
+
+if [ "$partition_label" != gpt ]; then
+    printf 'error: expected a GPT partition table, got: %s\n' "$partition_label" >&2
     exit 1
 fi
 
-image_sectors=$((image_size_bytes / SECTOR_SIZE))
-efi_start=$(sfdisk --part-start "$IMAGE" 1 | tr -d '[:space:]')
-efi_size=$(sfdisk --part-size "$IMAGE" 1 | tr -d '[:space:]')
-root_start=$(sfdisk --part-start "$IMAGE" 2 | tr -d '[:space:]')
-root_size=$(sfdisk --part-size "$IMAGE" 2 | tr -d '[:space:]')
+if [ "$partition_unit" != sectors ]; then
+    printf 'error: expected sfdisk JSON units in sectors, got: %s\n' "$partition_unit" >&2
+    exit 1
+fi
 
-require_unsigned_integer "$efi_start" efi_start
-require_unsigned_integer "$efi_size" efi_size
-require_unsigned_integer "$root_start" root_start
-require_unsigned_integer "$root_size" root_size
+for value_and_label in \
+    "$sector_size sector_size" \
+    "$partition_count partition_count" \
+    "$efi_start efi_start" \
+    "$efi_size efi_size" \
+    "$root_start root_start" \
+    "$root_size root_size"
+do
+    value=${value_and_label%% *}
+    label=${value_and_label#* }
+    require_unsigned_integer "$value" "$label"
+done
+
+if [ "$sector_size" -ne "$EXPECTED_SECTOR_SIZE" ]; then
+    printf 'error: expected %s-byte sectors, got: %s\n' \
+        "$EXPECTED_SECTOR_SIZE" "$sector_size" >&2
+    exit 1
+fi
+
+if [ "$partition_count" -ne 2 ]; then
+    printf 'error: expected exactly two partitions, got: %s\n' "$partition_count" >&2
+    exit 1
+fi
+
+if [ $((image_size_bytes % EXPECTED_SECTOR_SIZE)) -ne 0 ]; then
+    printf 'error: image size is not divisible by %s bytes: %s\n' \
+        "$EXPECTED_SECTOR_SIZE" "$image_size_bytes" >&2
+    exit 1
+fi
+
+image_sectors=$((image_size_bytes / EXPECTED_SECTOR_SIZE))
 
 if [ "$efi_size" -eq 0 ] || [ "$root_size" -eq 0 ]; then
     printf 'error: partition sizes must be greater than zero\n' >&2
@@ -114,8 +149,8 @@ root_type=$(sfdisk --part-type "$IMAGE" 2 | normalize_uuid)
 root_uuid=$(sfdisk --part-uuid "$IMAGE" 2 | normalize_uuid)
 
 {
-    printf 'format_version=1\n'
-    printf 'sector_size=%s\n' "$SECTOR_SIZE"
+    printf 'format_version=2\n'
+    printf 'sector_size=%s\n' "$EXPECTED_SECTOR_SIZE"
     printf 'image_size_bytes=%s\n' "$image_size_bytes"
     printf 'image_sector_count=%s\n' "$image_sectors"
     printf 'image_sha256=%s\n' "$whole_digest"
@@ -129,8 +164,7 @@ root_uuid=$(sfdisk --part-uuid "$IMAGE" 2 | normalize_uuid)
     hash_bytes mbr_reserved 444 2
     hash_bytes mbr_partition_table 446 64
     hash_bytes mbr_magic 510 2
-    hash_sectors primary_gpt_header 1 1
-    hash_sectors primary_gpt_array 2 $((efi_start - 2))
+    hash_sectors primary_gpt_region 1 $((efi_start - 1))
     hash_sectors efi_partition "$efi_start" "$efi_size"
     hash_sectors partition_gap "$efi_end" $((root_start - efi_end))
     hash_sectors root_partition "$root_start" "$root_size"
