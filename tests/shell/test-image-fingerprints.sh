@@ -27,25 +27,25 @@ cat > "$MOCK_BIN/sfdisk" <<'MOCK_SFDISK'
 set -eu
 
 case "$1" in
-    --part-start)
-        case "$3" in
-            1) printf '%s\n' 2 ;;
-            2)
-                if [ "${MORIMIL_MOCK_OVERLAP:-0}" = 1 ]; then
-                    printf '%s\n' 5
-                else
-                    printf '%s\n' 8
-                fi
-                ;;
-            *) exit 91 ;;
-        esac
-        ;;
-    --part-size)
-        case "$3" in
-            1) printf '%s\n' 4 ;;
-            2) printf '%s\n' 8 ;;
-            *) exit 92 ;;
-        esac
+    --json)
+        if [ "${MORIMIL_MOCK_OVERLAP:-0}" = 1 ]; then
+            root_start=5
+        else
+            root_start=8
+        fi
+        cat <<EOF_JSON
+{
+  "partitiontable": {
+    "label": "gpt",
+    "unit": "sectors",
+    "sectorsize": 512,
+    "partitions": [
+      {"start": 2, "size": 4},
+      {"start": $root_start, "size": 8}
+    ]
+  }
+}
+EOF_JSON
         ;;
     --disk-id) printf '%s\n' '11111111-1111-5111-8111-111111111111' ;;
     --part-type)
@@ -75,9 +75,11 @@ env PATH="$MOCK_BIN:$PATH" \
     sh "$FINGERPRINT_SCRIPT" "$IMAGE" "$TEST_TMP/regions-1.txt" \
     > "$TEST_TMP/fingerprint-1.out"
 
-grep -Fqx -- 'format_version=1' "$TEST_TMP/regions-1.txt"
+grep -Fqx -- 'format_version=2' "$TEST_TMP/regions-1.txt"
 grep -Fqx -- 'sector_size=512' "$TEST_TMP/regions-1.txt"
 grep -Fqx -- 'image_sector_count=20' "$TEST_TMP/regions-1.txt"
+grep -Fqx -- 'primary_gpt_region_start_sector=1' "$TEST_TMP/regions-1.txt"
+grep -Fqx -- 'primary_gpt_region_sector_count=1' "$TEST_TMP/regions-1.txt"
 grep -Fqx -- 'efi_partition_start_sector=2' "$TEST_TMP/regions-1.txt"
 grep -Fqx -- 'efi_partition_sector_count=4' "$TEST_TMP/regions-1.txt"
 grep -Fqx -- 'partition_gap_sector_count=2' "$TEST_TMP/regions-1.txt"
