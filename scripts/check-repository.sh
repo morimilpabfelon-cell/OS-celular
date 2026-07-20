@@ -43,6 +43,7 @@ for path in \
     tests/shell/test-scripts.sh \
     tests/shell/test-boot-proof.sh \
     tests/shell/test-ext4-inspection.sh \
+    tests/shell/test-image-configuration.sh \
     tests/shell/test-image-fingerprints.sh \
     tests/shell/test-image-normalization.sh
 do
