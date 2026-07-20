@@ -126,6 +126,18 @@ jobs:
             sh -c 'sh scripts/ci-build-arm64.sh && sh scripts/ci-inspect-ext4.sh' \
             2>&1 | tee build/ci.log
 
+      - name: Prepare evidence permissions
+        if: always()
+        run: |
+          set -eu
+          if [ -d build ]; then
+            sudo find build \
+              -maxdepth 1 \
+              -type f \
+              ! -name '*.raw' \
+              -exec chmod 0644 {} +
+          fi
+
       - name: Upload build evidence
         if: always()
         uses: actions/upload-artifact@v4
