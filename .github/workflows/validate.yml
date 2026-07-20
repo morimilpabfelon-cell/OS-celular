@@ -41,6 +41,21 @@ jobs:
       - name: Validate POSIX syntax
         run: find scripts tests -type f -name '*.sh' -exec sh -n {} \;
 
+      - name: Validate Python syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          paths = sorted(Path('scripts').glob('*.py'))
+          paths.extend(sorted(Path('tests/python').glob('test_*.py')))
+          if not paths:
+              raise SystemExit('no Python sources found')
+
+          for path in paths:
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+              print(f'python syntax ok: {path}')
+          PY
+
       - name: ShellCheck repository scripts
         run: shellcheck -s sh scripts/*.sh
 
@@ -53,6 +68,9 @@ jobs:
           for test_script in tests/shell/*.sh; do
             sh "$test_script"
           done
+
+      - name: Run Python unit tests
+        run: python3 -m unittest discover -s tests/python -p 'test_*.py' -v
 
       - name: Validate repository policy
         env:
@@ -91,7 +109,7 @@ jobs:
             "$DEBIAN_CONTAINER_IMAGE" > build/container-image.txt
           cat build/container-image.txt
 
-      - name: Build and boot Debian ARM64 in QEMU
+      - name: Build, boot, and inspect Debian ARM64
         run: |
           set -euo pipefail
           docker run --rm --privileged \
@@ -105,7 +123,8 @@ jobs:
             --env BUILD_DIR=/workspace/build \
             --env OUTPUT_IMAGE=/workspace/build/morimil-trixie-arm64.raw \
             "$DEBIAN_CONTAINER_IMAGE" \
-            sh scripts/ci-build-arm64.sh 2>&1 | tee build/ci.log
+            sh -c 'sh scripts/ci-build-arm64.sh && sh scripts/ci-inspect-ext4.sh' \
+            2>&1 | tee build/ci.log
 
       - name: Upload build evidence
         if: always()
@@ -118,6 +137,12 @@ jobs:
             build/boot.log
             build/container-image.txt
             build/environment.txt
+            build/ext4-groups.txt
+            build/ext4-inspection-environment.txt
+            build/ext4-inspection-status.txt
+            build/ext4-superblock.txt
+            build/ext4-tree.jsonl
+            build/ext4-tree.sha256
             build/guest-apt-sources.sources
             build/guest-apt-sources.sha256
             build/image-regions.txt
