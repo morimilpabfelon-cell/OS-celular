@@ -27,25 +27,24 @@ cat > "$MOCK_BIN/sfdisk" <<'MOCK_SFDISK'
 set -eu
 
 case "$1" in
-    --json)
+    --dump)
         if [ "${MORIMIL_MOCK_OVERLAP:-0}" = 1 ]; then
             root_start=5
         else
             root_start=8
         fi
-        cat <<EOF_JSON
-{
-  "partitiontable": {
-    "label": "gpt",
-    "unit": "sectors",
-    "sectorsize": 512,
-    "partitions": [
-      {"start": 2, "size": 4},
-      {"start": $root_start, "size": 8}
-    ]
-  }
-}
-EOF_JSON
+        cat <<EOF_DUMP
+label: gpt
+label-id: 11111111-1111-5111-8111-111111111111
+device: $2
+unit: sectors
+first-lba: 1
+last-lba: 19
+sector-size: 512
+
+${2}1 : start=2, size=4, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=22222222-2222-5222-8222-222222222222
+${2}2 : start=$root_start, size=8, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, uuid=33333333-3333-5333-8333-333333333333
+EOF_DUMP
         ;;
     --disk-id) printf '%s\n' '11111111-1111-5111-8111-111111111111' ;;
     --part-type)
