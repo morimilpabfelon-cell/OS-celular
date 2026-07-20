@@ -46,7 +46,7 @@ done
 )
 
 {
-    printf 'python=' 
+    printf 'python='
     python3 --version
     dpkg-query -W python3 python3-minimal e2fsprogs mount util-linux
 } > "$ENVIRONMENT_FILE"
