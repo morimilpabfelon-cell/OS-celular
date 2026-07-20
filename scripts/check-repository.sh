@@ -30,14 +30,19 @@ for path in \
     docs/adr/0002-qemu-arm64-validation-image.md \
     scripts/build-qemu-arm64.sh \
     scripts/ci-build-arm64.sh \
+    scripts/ci-inspect-ext4.sh \
     scripts/configure-validation-image.sh \
     scripts/fingerprint-qemu-image.sh \
+    scripts/inspect-ext4-root.sh \
+    scripts/manifest-ext4-tree.py \
     scripts/normalize-qemu-image.sh \
     scripts/run-qemu-arm64.sh \
     scripts/verify-boot-log.sh \
     scripts/check-repository.sh \
+    tests/python/test_manifest_ext4_tree.py \
     tests/shell/test-scripts.sh \
     tests/shell/test-boot-proof.sh \
+    tests/shell/test-ext4-inspection.sh \
     tests/shell/test-image-fingerprints.sh \
     tests/shell/test-image-normalization.sh
 do
@@ -58,6 +63,23 @@ for script in scripts/*.sh tests/shell/*.sh; do
     fi
 done
 
+if ! command -v python3 >/dev/null 2>&1; then
+    printf 'error: python3 is required for repository validation\n' >&2
+    exit 1
+fi
+
+python3 - <<'PY'
+from pathlib import Path
+
+paths = sorted(Path("scripts").glob("*.py"))
+paths.extend(sorted(Path("tests/python").glob("test_*.py")))
+if not paths:
+    raise SystemExit("no Python sources found")
+
+for path in paths:
+    compile(path.read_text(encoding="utf-8"), str(path), "exec")
+PY
+
 if [ "$SKIP_SHELLCHECK" = 0 ]; then
     if command -v shellcheck >/dev/null 2>&1; then
         shellcheck -s sh scripts/*.sh tests/shell/*.sh
@@ -71,6 +93,7 @@ if git ls-files -- \
     '*.qcow2' \
     '*.img' \
     '*.log' \
+    '*.jsonl' \
     '*.sha256' \
     '*.metadata' \
     '*.identifiers' | grep -q .
@@ -80,6 +103,7 @@ then
         '*.qcow2' \
         '*.img' \
         '*.log' \
+        '*.jsonl' \
         '*.sha256' \
         '*.metadata' \
         '*.identifiers' >&2
