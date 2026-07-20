@@ -18,6 +18,12 @@ mkdir -p \
     "$TARGET_ROOT/etc/systemd/system" \
     "$TARGET_ROOT/etc/systemd/system/multi-user.target.wants"
 
+rm -f "$TARGET_ROOT/etc/resolv.conf"
+cat > "$TARGET_ROOT/etc/resolv.conf" <<'RESOLV'
+# Morimil validation image: QEMU networking is disabled.
+RESOLV
+chmod 0644 "$TARGET_ROOT/etc/resolv.conf"
+
 cat > "$TARGET_ROOT/usr/local/sbin/morimil-boot-proof" <<'PROOF'
 #!/bin/sh
 
