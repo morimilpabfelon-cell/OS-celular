@@ -18,7 +18,7 @@ if [ ! -f "$IMAGE" ] || [ ! -r "$IMAGE" ]; then
     exit 1
 fi
 
-for required_command in dd jq sfdisk sha256sum stat tr; do
+for required_command in awk dd sfdisk sha256sum stat tr; do
     if ! command -v "$required_command" >/dev/null 2>&1; then
         printf 'error: required fingerprint command not found: %s\n' "$required_command" >&2
         exit 1
@@ -38,6 +38,54 @@ require_unsigned_integer() {
 
 normalize_uuid() {
     tr -d '[:space:]' | tr '[:lower:]' '[:upper:]'
+}
+
+layout_header() {
+    wanted=$1
+    printf '%s\n' "$layout_dump" | awk -F: -v wanted="$wanted" '
+        $1 == wanted {
+            sub(/^[^:]*:[[:space:]]*/, "", $0)
+            print
+            found = 1
+            exit
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    '
+}
+
+partition_field() {
+    wanted_partition=$1
+    wanted_field=$2
+    printf '%s\n' "$layout_dump" | awk -F'[=,]' \
+        -v wanted_partition="$wanted_partition" \
+        -v wanted_field="$wanted_field" '
+        /:[[:space:]]*start[[:space:]]*=/ {
+            partition += 1
+            if (partition == wanted_partition) {
+                for (field = 1; field < NF; field += 1) {
+                    key = $field
+                    sub(/^.*:[[:space:]]*/, "", key)
+                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+                    if (key == wanted_field) {
+                        value = $(field + 1)
+                        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+                        print value
+                        found = 1
+                        exit
+                    }
+                }
+            }
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    '
 }
 
 hash_sectors() {
@@ -65,15 +113,22 @@ hash_bytes() {
 image_size_bytes=$(stat -c '%s' "$IMAGE")
 require_unsigned_integer "$image_size_bytes" image_size_bytes
 
-layout_json=$(sfdisk --json "$IMAGE")
-partition_label=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.label')
-partition_unit=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.unit')
-sector_size=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.sectorsize')
-partition_count=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions | length')
-efi_start=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[0].start')
-efi_size=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[0].size')
-root_start=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[1].start')
-root_size=$(printf '%s\n' "$layout_json" | jq -er '.partitiontable.partitions[1].size')
+layout_dump=$(sfdisk --dump "$IMAGE")
+partition_label=$(layout_header label)
+partition_unit=$(layout_header unit)
+sector_size=$(layout_header sector-size)
+partition_count=$(printf '%s\n' "$layout_dump" | awk '
+    /:[[:space:]]*start[[:space:]]*=/ {
+        count += 1
+    }
+    END {
+        print count + 0
+    }
+')
+efi_start=$(partition_field 1 start)
+efi_size=$(partition_field 1 size)
+root_start=$(partition_field 2 start)
+root_size=$(partition_field 2 size)
 
 if [ "$partition_label" != gpt ]; then
     printf 'error: expected a GPT partition table, got: %s\n' "$partition_label" >&2
@@ -81,7 +136,7 @@ if [ "$partition_label" != gpt ]; then
 fi
 
 if [ "$partition_unit" != sectors ]; then
-    printf 'error: expected sfdisk JSON units in sectors, got: %s\n' "$partition_unit" >&2
+    printf 'error: expected sfdisk dump units in sectors, got: %s\n' "$partition_unit" >&2
     exit 1
 fi
 
