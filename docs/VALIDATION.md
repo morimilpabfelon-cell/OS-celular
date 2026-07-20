@@ -22,7 +22,7 @@ Este documento separa pruebas estáticas, contratos simulados y ejecución real.
 | Apagado controlado | Validado | salida 0 de QEMU |
 | Identificadores GPT deterministas | Validado | manifiesto `.identifiers` |
 | Localización regional de entropía | Validada | `image-regions.txt` |
-| Reproducibilidad bit a bit | No validada | dos SHA-256 raw idénticos |
+| Reproducibilidad bit a bit | Validada | ejecuciones `29714518572` y `29715172215` |
 | Soporte de teléfono físico | No iniciado | matriz por componente |
 
 ## Pruebas estáticas
@@ -54,7 +54,7 @@ for test_script in tests/shell/*.sh; do
 done
 ```
 
-Usan ejecutables simulados para verificar:
+Usan ejecutables simulados o raíces temporales para verificar:
 
 - opciones EFI, ARM64, snapshot y script de personalización;
 - transporte HTTP hacia Debian Snapshot con verificación de Release firmada;
@@ -65,6 +65,7 @@ Usan ejecutables simulados para verificar:
 - validación de recursos y firmware;
 - normalización determinista de identificadores GPT;
 - huellas separadas de regiones de la imagen;
+- sustitución determinista de `/etc/resolv.conf` heredado;
 - instalación segura de la instrumentación de arranque;
 - aceptación y rechazo correctos del verificador de logs;
 - creación del dispositivo loop ext4 en modo de solo lectura;
@@ -117,7 +118,7 @@ El verificador exige esa marca exacta y rechaza tanto su ausencia como `MORIMIL_
 - GPT de respaldo;
 - imagen raw completa.
 
-Dos ejecuciones reales demostraron que MBR, GPT, EFI y espacios externos a la raíz son idénticos. La diferencia pendiente está confinada a la partición ext4 raíz.
+Las primeras comparaciones demostraron que MBR, GPT, EFI y espacios externos a la raíz eran idénticos. La inspección del árbol ext4 redujo la única diferencia a `/etc/resolv.conf`, copiado por `mmdebstrap` desde el contenedor anfitrión. `scripts/configure-validation-image.sh` sustituye ahora cualquier archivo o enlace heredado por un archivo regular `0644` con contenido exacto y estable.
 
 ## Inspección ext4 de solo lectura
 
@@ -170,11 +171,11 @@ build/
 
 La imagen raw no se sube a Git ni a los artefactos de CI. El checksum permite identificarla sin consumir almacenamiento innecesario.
 
-## Reproducibilidad
+## Reproducibilidad validada
 
-Solo se compararán dos construcciones cuando coincidan:
+Solo se comparan construcciones cuando coinciden:
 
-- commit;
+- commit de construcción;
 - snapshot solicitado;
 - `SOURCE_DATE_EPOCH`;
 - digest del contenedor;
@@ -184,7 +185,20 @@ Solo se compararán dos construcciones cuando coincidan:
 - tamaño y opciones de imagen;
 - identificadores GPT derivados.
 
-La igualdad exacta de SHA-256 es obligatoria. Un build exitoso demuestra construcción y arranque. Dos árboles de archivos iguales tampoco bastan si la representación ext4 raw difiere.
+Las ejecuciones independientes `29714518572` y `29715172215`, ambas sobre el commit de construcción `50d40bc11f88b3e9c93ac7ed8ac1eac23a2fe221`, produjeron imágenes raw con el mismo SHA-256 completo:
+
+```text
+1da5031ee0d1b322e30b7c08148856706fb3572f5c3fd15cdc86fd79d4c27983
+```
+
+También coincidieron exactamente `image-regions.txt`, los identificadores GPT, la metadata del constructor, el superblock ext4, los descriptores de grupos y el manifiesto de `27157` entradas:
+
+```text
+root_partition_sha256=04146ee6bd1abdc44805e58186bf964708991b7731d35ab8fa521b07202d9b82
+tree_manifest_sha256=a50b78d883fb05cb93b4b9740402b5c9c22fc01598eb885566ba87ba45dca886
+```
+
+Los ZIP de evidencia no tienen que ser idénticos porque contienen logs y envoltorios específicos de cada ejecución. La afirmación de reproducibilidad se limita a la imagen raw y a las entradas fijadas descritas aquí; no implica reproducibilidad automática después de cambiar esas entradas.
 
 ## Límites
 
