@@ -27,10 +27,13 @@ for path in \
     docs/ROADMAP.md \
     docs/BUILDING.md \
     docs/ARCH_EXECUTOR.md \
+    docs/ARCH_ROOTFS_BOOTSTRAP.md \
     docs/VALIDATION.md \
     docs/adr/0001-debian-host-arch-executor.md \
     docs/adr/0002-qemu-arm64-validation-image.md \
     docs/adr/0003-arch-executor-isolation.md \
+    docs/adr/0004-authenticated-arch-rootfs-bootstrap.md \
+    scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
     scripts/check-arch-executor-policy.sh \
     scripts/ci-build-arm64.sh \
@@ -41,11 +44,14 @@ for path in \
     scripts/manifest-ext4-tree.py \
     scripts/normalize-qemu-image.sh \
     scripts/run-qemu-arm64.sh \
+    scripts/validate-rootfs-archive.py \
     scripts/verify-boot-log.sh \
     scripts/check-repository.sh \
     tests/python/test_manifest_ext4_tree.py \
+    tests/python/test_validate_rootfs_archive.py \
     tests/shell/test-scripts.sh \
     tests/shell/test-arch-executor-policy.sh \
+    tests/shell/test-arch-rootfs-bootstrap.sh \
     tests/shell/test-boot-proof.sh \
     tests/shell/test-ext4-inspection.sh \
     tests/shell/test-image-configuration.sh \
