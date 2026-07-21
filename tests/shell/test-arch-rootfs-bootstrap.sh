@@ -8,7 +8,7 @@ case "$0" in
     *) TEST_DIR=. ;;
 esac
 
-ROOT_DIR=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd)
+ROOT_DIR=$(CDPATH='' cd -- "$TEST_DIR/../.." && pwd)
 BOOTSTRAP=$ROOT_DIR/scripts/bootstrap-arch-rootfs.sh
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' 0 HUP INT TERM
