@@ -22,13 +22,17 @@ for path in \
     .github/workflows/validate.yml \
     README.md \
     CONTRIBUTING.md \
+    config/nspawn/morimil-arch.nspawn \
     docs/ARCHITECTURE.md \
     docs/ROADMAP.md \
     docs/BUILDING.md \
+    docs/ARCH_EXECUTOR.md \
     docs/VALIDATION.md \
     docs/adr/0001-debian-host-arch-executor.md \
     docs/adr/0002-qemu-arm64-validation-image.md \
+    docs/adr/0003-arch-executor-isolation.md \
     scripts/build-qemu-arm64.sh \
+    scripts/check-arch-executor-policy.sh \
     scripts/ci-build-arm64.sh \
     scripts/ci-inspect-ext4.sh \
     scripts/configure-validation-image.sh \
@@ -41,6 +45,7 @@ for path in \
     scripts/check-repository.sh \
     tests/python/test_manifest_ext4_tree.py \
     tests/shell/test-scripts.sh \
+    tests/shell/test-arch-executor-policy.sh \
     tests/shell/test-boot-proof.sh \
     tests/shell/test-ext4-inspection.sh \
     tests/shell/test-image-configuration.sh \
