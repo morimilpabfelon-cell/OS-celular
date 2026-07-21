@@ -121,35 +121,35 @@ expect_reject() {
 run_success
 
 expect_reject 'missing SHA-256' env \
-    ARCH_ROOTFS_MACHINE_ROOT=$TMP_DIR/machines \
-    ARCH_ROOTFS_STATE_ROOT=$TMP_DIR/state \
-    ARCH_ROOTFS_DESTINATION=$TMP_DIR/machines/missing-sha \
-    ARCH_ROOTFS_STATE_DIR=$TMP_DIR/state/missing-sha \
+    ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
+    ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
+    ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/missing-sha" \
+    ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/missing-sha" \
     sh "$BOOTSTRAP"
 
 expect_reject 'HTTP transport' env \
-    ARCH_ROOTFS_MACHINE_ROOT=$TMP_DIR/machines \
-    ARCH_ROOTFS_STATE_ROOT=$TMP_DIR/state \
+    ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
+    ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
     ARCH_ROOTFS_URL=http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz \
     ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
-    ARCH_ROOTFS_DESTINATION=$TMP_DIR/machines/http \
-    ARCH_ROOTFS_STATE_DIR=$TMP_DIR/state/http \
+    ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/http" \
+    ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/http" \
     sh "$BOOTSTRAP"
 
 expect_reject 'destination outside machine storage' env \
-    ARCH_ROOTFS_MACHINE_ROOT=$TMP_DIR/machines \
-    ARCH_ROOTFS_STATE_ROOT=$TMP_DIR/state \
+    ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
+    ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
     ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
-    ARCH_ROOTFS_DESTINATION=$TMP_DIR/outside \
-    ARCH_ROOTFS_STATE_DIR=$TMP_DIR/state/outside \
+    ARCH_ROOTFS_DESTINATION="$TMP_DIR/outside" \
+    ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/outside" \
     sh "$BOOTSTRAP"
 
 expect_reject 'existing destination' env \
-    ARCH_ROOTFS_MACHINE_ROOT=$TMP_DIR/machines \
-    ARCH_ROOTFS_STATE_ROOT=$TMP_DIR/state \
+    ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
+    ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
     ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
-    ARCH_ROOTFS_DESTINATION=$TMP_DIR/machines/morimil-arch \
-    ARCH_ROOTFS_STATE_DIR=$TMP_DIR/state/existing \
+    ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/morimil-arch" \
+    ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/existing" \
     sh "$BOOTSTRAP"
 
 printf 'Arch rootfs bootstrap contract tests passed.\n'
