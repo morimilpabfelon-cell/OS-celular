@@ -43,8 +43,8 @@ make_evidence() {
     awk 'BEGIN { for (i = 1; i <= 10000; i++) print "usr/lib/morimil-fixture-" i }' > "$directory/archive-list.txt"
     list_sha=$(sha256sum "$directory/archive-list.txt" | awk '{ print $1 }')
     cat > "$directory/release.env" <<EOF
-MORIMIL_ARCH_ROOTFS_URL=https://mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
-MORIMIL_ARCH_ROOTFS_SIGNATURE_URL=https://mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.sig
+MORIMIL_ARCH_ROOTFS_URL=https://mirror.math.princeton.edu/pub/archlinuxarm/os/ArchLinuxARM-aarch64-latest.tar.gz
+MORIMIL_ARCH_ROOTFS_SIGNATURE_URL=https://mirror.math.princeton.edu/pub/archlinuxarm/os/ArchLinuxARM-aarch64-latest.tar.gz.sig
 MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT=68B3537F39A313B3E574D06777193F152BDBE6A6
 MORIMIL_ARCH_ROOTFS_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 MORIMIL_ARCH_ROOTFS_SHA512=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -63,7 +63,7 @@ sh "$CHECK" "$VALID" >/dev/null
 
 HTTP=$TMP_DIR/http
 cp -R "$VALID" "$HTTP"
-sed -i 's#https://mirror.archlinuxarm.org#http://mirror.archlinuxarm.org#' "$HTTP/release.env"
+sed -i 's#https://mirror.math.princeton.edu#http://mirror.math.princeton.edu#' "$HTTP/release.env"
 expect_reject 'HTTP evidence URL' "$HTTP"
 
 FINGERPRINT=$TMP_DIR/fingerprint
