@@ -36,10 +36,12 @@ for path in \
     scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
     scripts/check-arch-executor-policy.sh \
+    scripts/check-arch-rootfs-release-evidence.sh \
     scripts/ci-build-arm64.sh \
     scripts/ci-inspect-ext4.sh \
     scripts/configure-validation-image.sh \
     scripts/fingerprint-qemu-image.sh \
+    scripts/inspect-arch-rootfs-release.sh \
     scripts/inspect-ext4-root.sh \
     scripts/manifest-ext4-tree.py \
     scripts/normalize-qemu-image.sh \
@@ -52,6 +54,7 @@ for path in \
     tests/shell/test-scripts.sh \
     tests/shell/test-arch-executor-policy.sh \
     tests/shell/test-arch-rootfs-bootstrap.sh \
+    tests/shell/test-arch-rootfs-release-evidence.sh \
     tests/shell/test-boot-proof.sh \
     tests/shell/test-ext4-inspection.sh \
     tests/shell/test-image-configuration.sh \
