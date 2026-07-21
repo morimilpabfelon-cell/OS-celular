@@ -112,12 +112,16 @@ python3 "$ROOT_DIR/scripts/validate-rootfs-archive.py" < "$OUTPUT_DIR/archive-li
 ARCHIVE_ENTRIES=$(wc -l < "$OUTPUT_DIR/archive-list.txt" | awk '{ print $1 }')
 ARCHIVE_LIST_SHA256=$(sha256sum "$OUTPUT_DIR/archive-list.txt" | awk '{ print $1 }')
 
-OS_RELEASE_PATH=$(awk '$0 == "etc/os-release" || $0 == "./etc/os-release" { print; exit }' "$OUTPUT_DIR/archive-list.txt")
+OS_RELEASE_PATH=$(awk '$0 == "usr/lib/os-release" || $0 == "./usr/lib/os-release" { print; exit }' "$OUTPUT_DIR/archive-list.txt")
+if [ -z "$OS_RELEASE_PATH" ]; then
+    OS_RELEASE_PATH=$(awk '$0 == "etc/os-release" || $0 == "./etc/os-release" { print; exit }' "$OUTPUT_DIR/archive-list.txt")
+fi
 PACMAN_PATH=$(awk '$0 == "usr/bin/pacman" || $0 == "./usr/bin/pacman" { print; exit }' "$OUTPUT_DIR/archive-list.txt")
-[ -n "$OS_RELEASE_PATH" ] || fail 'archive does not contain /etc/os-release'
+[ -n "$OS_RELEASE_PATH" ] || fail 'archive does not contain an os-release file'
 [ -n "$PACMAN_PATH" ] || fail 'archive does not contain /usr/bin/pacman'
 
 bsdtar -xOf "$ARCHIVE" "$OS_RELEASE_PATH" > "$OUTPUT_DIR/os-release"
+[ -s "$OUTPUT_DIR/os-release" ] || fail 'archive os-release file is empty'
 grep -Eq '^ID=archarm$|^ID=arch$' "$OUTPUT_DIR/os-release" || fail 'archive does not identify itself as Arch Linux ARM'
 
 {
