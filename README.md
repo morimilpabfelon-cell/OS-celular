@@ -8,11 +8,7 @@ Repositorio del sistema operativo móvil Morimil.
 
 **Fase 1: base Debian ARM64 reproducible validada en QEMU.**
 
-La arquitectura fundacional está documentada. El repositorio contiene un proceso verificable para construir una imagen Debian 13 ARM64, arrancarla mediante UEFI en QEMU `virt`, alcanzar `multi-user.target` sin intervención manual y apagarla de forma controlada.
-
-Dos ejecuciones independientes sobre el mismo commit de construcción produjeron imágenes raw idénticas bit a bit. La evidencia, los criterios y los límites de esta validación están registrados en [docs/VALIDATION.md](docs/VALIDATION.md).
-
-Esta validación no implica soporte para un teléfono físico.
+La arquitectura fundacional está documentada. El repositorio contiene un proceso reproducible para construir y arrancar una imagen Debian 13 ARM64 en QEMU `virt`. La validación registrada demuestra arranque UEFI, kernel y systemd, activación de `multi-user.target`, apagado controlado e inspección de la imagen. Todavía no existe soporte para un teléfono físico.
 
 ## Alcance
 
@@ -33,17 +29,17 @@ Esta validación no implica soporte para un teléfono físico.
 - [ADR-0002: imagen Debian ARM64 para QEMU](docs/adr/0002-qemu-arm64-validation-image.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
-## Resultado de la Fase 1
+## Primer objetivo verificable
 
-La Fase 1 establece una base Debian ARM64 reproducible que arranca en QEMU `virt`, alcanza `multi-user.target` y produce evidencia conservable de construcción, arranque e inspección.
+La Fase 1 validó una imagen Debian ARM64 reproducible que arranca en QEMU `virt`, alcanza `multi-user.target` sin intervención manual y produce evidencia conservable de construcción, arranque e inspección.
 
-La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte Linux, sin depender de Android, Halium ni libhybris.
+La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
 ## Desarrollo
 
 Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
 
-El workflow ejecuta siempre validaciones estáticas y contractuales. La construcción y el arranque ARM64 reales se ejecutan mediante un disparador controlado y conservan evidencia separada. Una ejecución estática verde no debe interpretarse por sí sola como prueba de arranque.
+El workflow distingue las comprobaciones estáticas de la construcción y el arranque ARM64 reales. Las capacidades solo se consideran validadas cuando existe evidencia registrada.
 
 ## Licencia
 
