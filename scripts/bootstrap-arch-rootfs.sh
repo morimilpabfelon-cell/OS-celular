@@ -8,7 +8,7 @@ case "$0" in
     *) SCRIPT_DIR=. ;;
 esac
 
-ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 ROOTFS_URL=${ARCH_ROOTFS_URL:-https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz}
 SIGNATURE_URL=${ROOTFS_URL}.sig
 EXPECTED_SHA256=${ARCH_ROOTFS_EXPECTED_SHA256:-}
