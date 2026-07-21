@@ -6,9 +6,13 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 1: base ARM64 de validación en desarrollo.**
+**Fase 1: base Debian ARM64 reproducible validada en QEMU.**
 
-La arquitectura fundacional está documentada. El repositorio contiene scripts iniciales para construir y arrancar una imagen Debian ARM64 en QEMU, pero todavía no existe evidencia registrada de un arranque completo hasta `multi-user.target`, ni soporte para un teléfono físico.
+La arquitectura fundacional está documentada. El repositorio contiene un proceso verificable para construir una imagen Debian 13 ARM64, arrancarla mediante UEFI en QEMU `virt`, alcanzar `multi-user.target` sin intervención manual y apagarla de forma controlada.
+
+Dos ejecuciones independientes sobre el mismo commit de construcción produjeron imágenes raw idénticas bit a bit. La evidencia, los criterios y los límites de esta validación están registrados en [docs/VALIDATION.md](docs/VALIDATION.md).
+
+Esta validación no implica soporte para un teléfono físico.
 
 ## Alcance
 
@@ -29,17 +33,17 @@ La arquitectura fundacional está documentada. El repositorio contiene scripts i
 - [ADR-0002: imagen Debian ARM64 para QEMU](docs/adr/0002-qemu-arm64-validation-image.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
-## Primer objetivo verificable
+## Resultado de la Fase 1
 
-Construir una imagen Debian ARM64 reproducible que arranque en QEMU `virt`, alcance `multi-user.target` sin intervención manual y produzca evidencia conservable de construcción y arranque.
+La Fase 1 establece una base Debian ARM64 reproducible que arranca en QEMU `virt`, alcanza `multi-user.target` y produce evidencia conservable de construcción, arranque e inspección.
 
-La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
+La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte Linux, sin depender de Android, Halium ni libhybris.
 
 ## Desarrollo
 
 Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
 
-La validación automática actual solo comprueba estructura, sintaxis y políticas del repositorio. No debe interpretarse como prueba de arranque.
+El workflow ejecuta siempre validaciones estáticas y contractuales. La construcción y el arranque ARM64 reales se ejecutan mediante un disparador controlado y conservan evidencia separada. Una ejecución estática verde no debe interpretarse por sí sola como prueba de arranque.
 
 ## Licencia
 
