@@ -57,7 +57,21 @@ jobs:
           PY
 
       - name: ShellCheck repository scripts
-        run: shellcheck -s sh scripts/*.sh
+        run: |
+          set +e
+          shellcheck -s sh scripts/*.sh > shellcheck-scripts.txt 2>&1
+          status=$?
+          cat shellcheck-scripts.txt
+          exit "$status"
+
+      - name: Upload ShellCheck diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shellcheck-diagnostics-${{ github.run_id }}
+          path: shellcheck-scripts.txt
+          if-no-files-found: error
+          retention-days: 1
 
       - name: ShellCheck contract tests
         run: shellcheck -s sh tests/shell/*.sh
