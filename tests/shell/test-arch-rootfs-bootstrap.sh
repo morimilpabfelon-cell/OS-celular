@@ -55,7 +55,11 @@ cat > "$MOCK_BIN/gpg" <<'EOF'
 #!/bin/sh
 case " $* " in
     *' --with-colons --fingerprint '*)
-        printf 'fpr:::::::::68B3537F39A313B3E574D06777193F152BDBE6A6:\n'
+        fingerprint=${MOCK_GPG_FINGERPRINT:-68B3537F39A313B3E574D06777193F152BDBE6A6}
+        printf 'fpr:::::::::%s:\n' "$fingerprint"
+        ;;
+    *' --verify '*)
+        [ "${MOCK_GPG_VERIFY_FAIL:-0}" -eq 0 ]
         ;;
     *)
         :
@@ -63,9 +67,10 @@ case " $* " in
 esac
 EOF
 
-cat > "$MOCK_BIN/sha256sum" <<EOF
+cat > "$MOCK_BIN/sha256sum" <<'EOF'
 #!/bin/sh
-printf '%s  %s\n' '$EXPECTED_SHA256' "\$1"
+digest=${MOCK_SHA256:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+printf '%s  %s\n' "$digest" "$1"
 EOF
 
 cat > "$MOCK_BIN/bsdtar" <<'EOF'
@@ -118,16 +123,27 @@ expect_reject() {
     fi
 }
 
+expect_reject_without_publish() {
+    name=$1
+    destination=$2
+    shift 2
+    expect_reject "$name" "$@"
+    if [ -e "$destination" ]; then
+        printf 'error: %s published a destination after failure\n' "$name" >&2
+        exit 1
+    fi
+}
+
 run_success
 
-expect_reject 'missing SHA-256' env \
+expect_reject_without_publish 'missing SHA-256' "$TMP_DIR/machines/missing-sha" env \
     ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
     ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
     ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/missing-sha" \
     ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/missing-sha" \
     sh "$BOOTSTRAP"
 
-expect_reject 'HTTP transport' env \
+expect_reject_without_publish 'HTTP transport' "$TMP_DIR/machines/http" env \
     ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
     ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
     ARCH_ROOTFS_URL=http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz \
@@ -136,7 +152,7 @@ expect_reject 'HTTP transport' env \
     ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/http" \
     sh "$BOOTSTRAP"
 
-expect_reject 'destination outside machine storage' env \
+expect_reject_without_publish 'destination outside machine storage' "$TMP_DIR/outside" env \
     ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
     ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
     ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
@@ -150,6 +166,33 @@ expect_reject 'existing destination' env \
     ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
     ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/morimil-arch" \
     ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/existing" \
+    sh "$BOOTSTRAP"
+
+expect_reject_without_publish 'wrong signing fingerprint' "$TMP_DIR/machines/fingerprint" env \
+    MOCK_GPG_FINGERPRINT=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB \
+    ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
+    ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
+    ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
+    ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/fingerprint" \
+    ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/fingerprint" \
+    sh "$BOOTSTRAP"
+
+expect_reject_without_publish 'signature verification failure' "$TMP_DIR/machines/signature" env \
+    MOCK_GPG_VERIFY_FAIL=1 \
+    ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
+    ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
+    ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
+    ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/signature" \
+    ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/signature" \
+    sh "$BOOTSTRAP"
+
+expect_reject_without_publish 'SHA-256 mismatch' "$TMP_DIR/machines/sha-mismatch" env \
+    MOCK_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+    ARCH_ROOTFS_MACHINE_ROOT="$TMP_DIR/machines" \
+    ARCH_ROOTFS_STATE_ROOT="$TMP_DIR/state" \
+    ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256 \
+    ARCH_ROOTFS_DESTINATION="$TMP_DIR/machines/sha-mismatch" \
+    ARCH_ROOTFS_STATE_DIR="$TMP_DIR/state/sha-mismatch" \
     sh "$BOOTSTRAP"
 
 printf 'Arch rootfs bootstrap contract tests passed.\n'
