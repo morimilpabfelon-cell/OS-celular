@@ -14,6 +14,10 @@ for path in \
     "$EVIDENCE_DIR/release.env" \
     "$EVIDENCE_DIR/rootfs.headers" \
     "$EVIDENCE_DIR/rootfs.transfer" \
+    "$EVIDENCE_DIR/rootfs.curl.log" \
+    "$EVIDENCE_DIR/signature.headers" \
+    "$EVIDENCE_DIR/signature.transfer" \
+    "$EVIDENCE_DIR/signature.curl.log" \
     "$EVIDENCE_DIR/key.txt" \
     "$EVIDENCE_DIR/signature.status" \
     "$EVIDENCE_DIR/signature.log" \
@@ -71,6 +75,8 @@ case "$OBSERVED_AT" in
     *) fail 'observation timestamp must use UTC ISO-8601 format' ;;
 esac
 
+grep -Fq 'http_code=200' "$EVIDENCE_DIR/rootfs.transfer" || fail 'rootfs transfer did not finish with HTTP 200'
+grep -Fq 'http_code=200' "$EVIDENCE_DIR/signature.transfer" || fail 'signature transfer did not finish with HTTP 200'
 grep -Fq '[GNUPG:] VALIDSIG ' "$EVIDENCE_DIR/signature.status" || fail 'signature status lacks VALIDSIG'
 grep -Eq '^ID=archarm$|^ID=arch$' "$EVIDENCE_DIR/os-release" || fail 'os-release does not identify Arch Linux ARM'
 
