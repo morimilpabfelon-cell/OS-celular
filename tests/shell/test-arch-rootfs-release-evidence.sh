@@ -30,7 +30,11 @@ make_evidence() {
     directory=$1
     mkdir -p "$directory"
     : > "$directory/rootfs.headers"
-    : > "$directory/rootfs.transfer"
+    printf 'effective_url=https://mirror.example/rootfs.tar.gz\nhttp_code=200\nsize_download=100000000\ncontent_type=application/octet-stream\n' > "$directory/rootfs.transfer"
+    : > "$directory/rootfs.curl.log"
+    : > "$directory/signature.headers"
+    printf 'effective_url=https://mirror.example/rootfs.tar.gz.sig\nhttp_code=200\nsize_download=566\ncontent_type=application/octet-stream\n' > "$directory/signature.transfer"
+    : > "$directory/signature.curl.log"
     : > "$directory/key.txt"
     : > "$directory/signature.log"
     : > "$directory/environment.txt"
@@ -39,8 +43,8 @@ make_evidence() {
     awk 'BEGIN { for (i = 1; i <= 10000; i++) print "usr/lib/morimil-fixture-" i }' > "$directory/archive-list.txt"
     list_sha=$(sha256sum "$directory/archive-list.txt" | awk '{ print $1 }')
     cat > "$directory/release.env" <<EOF
-MORIMIL_ARCH_ROOTFS_URL=https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
-MORIMIL_ARCH_ROOTFS_SIGNATURE_URL=https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.sig
+MORIMIL_ARCH_ROOTFS_URL=https://mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+MORIMIL_ARCH_ROOTFS_SIGNATURE_URL=https://mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.sig
 MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT=68B3537F39A313B3E574D06777193F152BDBE6A6
 MORIMIL_ARCH_ROOTFS_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 MORIMIL_ARCH_ROOTFS_SHA512=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -59,7 +63,7 @@ sh "$CHECK" "$VALID" >/dev/null
 
 HTTP=$TMP_DIR/http
 cp -R "$VALID" "$HTTP"
-sed -i 's#https://os.archlinuxarm.org#http://os.archlinuxarm.org#' "$HTTP/release.env"
+sed -i 's#https://mirror.archlinuxarm.org#http://mirror.archlinuxarm.org#' "$HTTP/release.env"
 expect_reject 'HTTP evidence URL' "$HTTP"
 
 FINGERPRINT=$TMP_DIR/fingerprint
@@ -71,6 +75,11 @@ LIST_HASH=$TMP_DIR/list-hash
 cp -R "$VALID" "$LIST_HASH"
 printf 'mutation\n' >> "$LIST_HASH/archive-list.txt"
 expect_reject 'mutated archive list' "$LIST_HASH"
+
+HTTP_STATUS=$TMP_DIR/http-status
+cp -R "$VALID" "$HTTP_STATUS"
+sed -i 's/http_code=200/http_code=404/' "$HTTP_STATUS/rootfs.transfer"
+expect_reject 'failed rootfs transfer' "$HTTP_STATUS"
 
 ARCHIVE=$TMP_DIR/archive
 cp -R "$VALID" "$ARCHIVE"
