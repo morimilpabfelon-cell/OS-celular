@@ -10,7 +10,7 @@ esac
 
 ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 OUTPUT_DIR=${ARCH_ROOTFS_EVIDENCE_DIR:-$ROOT_DIR/build/arch-rootfs-release}
-ROOTFS_URL=${ARCH_ROOTFS_URL:-https://mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz}
+ROOTFS_URL=${ARCH_ROOTFS_URL:-https://mirror.math.princeton.edu/pub/archlinuxarm/os/ArchLinuxARM-aarch64-latest.tar.gz}
 SIGNATURE_URL=${ROOTFS_URL}.sig
 KEYSERVER=${ARCH_ROOTFS_KEYSERVER:-hkps://keyserver.ubuntu.com}
 SIGNING_FINGERPRINT=68B3537F39A313B3E574D06777193F152BDBE6A6
