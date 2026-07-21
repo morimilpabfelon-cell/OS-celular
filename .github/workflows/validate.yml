@@ -1,7 +1,13 @@
 name: Repository validation
 
 on:
+  workflow_dispatch:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
   push:
     branches:
       - main
@@ -23,12 +29,140 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
+          fetch-depth: 2
           persist-credentials: false
+          show-progress: false
 
       - name: Install ShellCheck
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends shellcheck
 
-      - name: Validate repository
+      - name: Validate POSIX syntax
+        run: find scripts tests -type f -name '*.sh' -exec sh -n {} \;
+
+      - name: Validate Python syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          paths = sorted(Path('scripts').glob('*.py'))
+          paths.extend(sorted(Path('tests/python').glob('test_*.py')))
+          if not paths:
+              raise SystemExit('no Python sources found')
+
+          for path in paths:
+              compile(path.read_text(encoding='utf-8'), str(path), 'exec')
+              print(f'python syntax ok: {path}')
+          PY
+
+      - name: ShellCheck repository scripts
+        run: shellcheck -s sh scripts/*.sh
+
+      - name: ShellCheck contract tests
+        run: shellcheck -s sh tests/shell/*.sh
+
+      - name: Run shell contract tests
+        run: |
+          set -eu
+          for test_script in tests/shell/*.sh; do
+            sh "$test_script"
+          done
+
+      - name: Run Python unit tests
+        run: python3 -m unittest discover -s tests/python -p 'test_*.py' -v
+
+      - name: Validate repository policy
+        env:
+          SKIP_SHELLCHECK: '1'
         run: sh scripts/check-repository.sh
+
+  arm64-build:
+    name: Debian 13 ARM64 real build and boot
+    needs: static
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.body, '<!-- run-arm64-build -->')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      DEBIAN_CONTAINER_IMAGE: debian:trixie-20260623
+      DEBIAN_SNAPSHOT: 20260718T000000Z
+      SOURCE_DATE_EPOCH: '1784332800'
+      IMAGE_SIZE: 4G
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          show-progress: false
+
+      - name: Pull and record Debian build environment
+        run: |
+          set -eu
+          mkdir -p build
+          docker pull "$DEBIAN_CONTAINER_IMAGE"
+          docker image inspect \
+            --format '{{index .RepoDigests 0}}' \
+            "$DEBIAN_CONTAINER_IMAGE" > build/container-image.txt
+          cat build/container-image.txt
+
+      - name: Build, boot, and inspect Debian ARM64
+        run: |
+          set -euo pipefail
+          docker run --rm --privileged \
+            --volume "$GITHUB_WORKSPACE:/workspace:ro" \
+            --volume "$GITHUB_WORKSPACE/build:/workspace/build:rw" \
+            --workdir /workspace \
+            --env DEBIAN_CONTAINER_IMAGE \
+            --env DEBIAN_SNAPSHOT \
+            --env SOURCE_DATE_EPOCH \
+            --env IMAGE_SIZE \
+            --env BUILD_DIR=/workspace/build \
+            --env OUTPUT_IMAGE=/workspace/build/morimil-trixie-arm64.raw \
+            "$DEBIAN_CONTAINER_IMAGE" \
+            sh -c 'sh scripts/ci-build-arm64.sh && sh scripts/ci-inspect-ext4.sh' \
+            2>&1 | tee build/ci.log
+
+      - name: Prepare evidence permissions
+        if: always()
+        run: |
+          set -eu
+          if [ -d build ]; then
+            sudo find build \
+              -maxdepth 1 \
+              -type f \
+              ! -name '*.raw' \
+              -exec chmod 0644 {} +
+          fi
+
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morimil-arm64-validation-${{ github.run_id }}
+          path: |
+            build/ci.log
+            build/build.log
+            build/boot.log
+            build/container-image.txt
+            build/environment.txt
+            build/ext4-groups.txt
+            build/ext4-inspection-environment.txt
+            build/ext4-inspection-status.txt
+            build/ext4-superblock.txt
+            build/ext4-tree.jsonl
+            build/ext4-tree.sha256
+            build/guest-apt-sources.sources
+            build/guest-apt-sources.sha256
+            build/image-regions.txt
+            build/mmdebstrap-helper-preflight.txt
+            build/mmdebstrap-helper.sha256
+            build/morimil-trixie-arm64.raw.identifiers
+            build/morimil-trixie-arm64.raw.metadata
+            build/morimil-trixie-arm64.raw.sha256
+            build/validation-status.txt
+          if-no-files-found: warn
+          retention-days: 7

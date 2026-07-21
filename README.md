@@ -6,9 +6,9 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 0: definición técnica.**
+**Fase 1: base Debian ARM64 reproducible validada en QEMU.**
 
-El repositorio todavía no contiene una imagen arrancable, kernel adaptado a un teléfono, interfaz móvil funcional ni soporte de hardware. Esos componentes solo se declararán implementados cuando existan código, artefactos reproducibles y pruebas registradas.
+La arquitectura fundacional está documentada. El repositorio contiene un proceso reproducible para construir y arrancar una imagen Debian 13 ARM64 en QEMU `virt`. La validación registrada demuestra arranque UEFI, kernel y systemd, activación de `multi-user.target`, apagado controlado e inspección de la imagen. Todavía no existe soporte para un teléfono físico.
 
 ## Alcance
 
@@ -23,18 +23,23 @@ El repositorio todavía no contiene una imagen arrancable, kernel adaptado a un 
 
 - [Arquitectura](docs/ARCHITECTURE.md)
 - [Hoja de ruta](docs/ROADMAP.md)
+- [Construcción ARM64 en QEMU](docs/BUILDING.md)
+- [Estado y criterios de validación](docs/VALIDATION.md)
 - [ADR-0001: Debian Host y Arch Executor](docs/adr/0001-debian-host-arch-executor.md)
+- [ADR-0002: imagen Debian ARM64 para QEMU](docs/adr/0002-qemu-arm64-validation-image.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
 ## Primer objetivo verificable
 
-Construir una imagen Debian ARM64 reproducible que arranque en QEMU `virt`, alcance un estado operativo sin intervención manual y pueda iniciar un entorno Arch Linux ARM aislado. La prueba también deberá demostrar que un fallo del ejecutor Arch no impide que Debian continúe funcionando.
+La Fase 1 validó una imagen Debian ARM64 reproducible que arranca en QEMU `virt`, alcanza `multi-user.target` sin intervención manual y produce evidencia conservable de construcción, arranque e inspección.
 
 La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
 ## Desarrollo
 
-Después del commit inicial, los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
+Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
+
+El workflow distingue las comprobaciones estáticas de la construcción y el arranque ARM64 reales. Las capacidades solo se consideran validadas cuando existe evidencia registrada.
 
 ## Licencia
 
