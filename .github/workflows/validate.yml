@@ -166,3 +166,55 @@ jobs:
             build/validation-status.txt
           if-no-files-found: warn
           retention-days: 7
+
+  arch-rootfs-discovery:
+    name: Inspect signed Arch Linux ARM rootfs release
+    needs: static
+    if: >-
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.body, '<!-- run-arch-rootfs-discovery -->')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install release inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            ca-certificates \
+            curl \
+            gnupg \
+            libarchive-tools
+
+      - name: Inspect official signed AArch64 rootfs
+        env:
+          ARCH_ROOTFS_EVIDENCE_DIR: ${{ github.workspace }}/build/arch-rootfs-release
+        run: sh scripts/inspect-arch-rootfs-release.sh
+
+      - name: Validate release evidence
+        run: sh scripts/check-arch-rootfs-release-evidence.sh build/arch-rootfs-release
+
+      - name: Prepare release evidence permissions
+        if: always()
+        run: |
+          set -eu
+          if [ -d build/arch-rootfs-release ]; then
+            chmod 0755 build/arch-rootfs-release
+            find build/arch-rootfs-release -maxdepth 1 -type f -exec chmod 0644 {} +
+          fi
+
+      - name: Upload Arch rootfs release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morimil-arch-rootfs-release-${{ github.run_id }}
+          path: build/arch-rootfs-release/
+          if-no-files-found: warn
+          retention-days: 7
