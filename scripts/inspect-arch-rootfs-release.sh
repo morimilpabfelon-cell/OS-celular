@@ -10,7 +10,7 @@ esac
 
 ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 OUTPUT_DIR=${ARCH_ROOTFS_EVIDENCE_DIR:-$ROOT_DIR/build/arch-rootfs-release}
-ROOTFS_URL=${ARCH_ROOTFS_URL:-https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz}
+ROOTFS_URL=${ARCH_ROOTFS_URL:-https://mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz}
 SIGNATURE_URL=${ROOTFS_URL}.sig
 KEYSERVER=${ARCH_ROOTFS_KEYSERVER:-hkps://keyserver.ubuntu.com}
 SIGNING_FINGERPRINT=68B3537F39A313B3E574D06777193F152BDBE6A6
@@ -59,7 +59,9 @@ curl \
     --dump-header "$OUTPUT_DIR/rootfs.headers" \
     --write-out 'effective_url=%{url_effective}\nhttp_code=%{http_code}\nsize_download=%{size_download}\ncontent_type=%{content_type}\n' \
     --output "$ARCHIVE" \
-    "$ROOTFS_URL" > "$OUTPUT_DIR/rootfs.transfer"
+    "$ROOTFS_URL" \
+    > "$OUTPUT_DIR/rootfs.transfer" \
+    2> "$OUTPUT_DIR/rootfs.curl.log"
 
 curl \
     --fail \
@@ -67,8 +69,12 @@ curl \
     --proto '=https' \
     --proto-redir '=https' \
     --tlsv1.2 \
+    --dump-header "$OUTPUT_DIR/signature.headers" \
+    --write-out 'effective_url=%{url_effective}\nhttp_code=%{http_code}\nsize_download=%{size_download}\ncontent_type=%{content_type}\n' \
     --output "$SIGNATURE" \
-    "$SIGNATURE_URL"
+    "$SIGNATURE_URL" \
+    > "$OUTPUT_DIR/signature.transfer" \
+    2> "$OUTPUT_DIR/signature.curl.log"
 
 gpg \
     --homedir "$GNUPGHOME" \
