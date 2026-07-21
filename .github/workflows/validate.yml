@@ -162,7 +162,7 @@ jobs:
             build/mmdebstrap-helper.sha256
             build/morimil-trixie-arm64.raw.identifiers
             build/morimil-trixie-arm64.raw.metadata
+            build/morimil-trixie-arm64.raw.sha256
             build/validation-status.txt
           if-no-files-found: warn
           retention-days: 7
-
