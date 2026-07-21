@@ -6,9 +6,11 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 1: base Debian ARM64 reproducible validada en QEMU.**
+**Fase 2: Arch Executor aislado en desarrollo.**
 
-La arquitectura fundacional está documentada. El repositorio contiene un proceso reproducible para construir y arrancar una imagen Debian 13 ARM64 en QEMU `virt`. La validación registrada demuestra arranque UEFI, kernel y systemd, activación de `multi-user.target`, apagado controlado e inspección de la imagen. Todavía no existe soporte para un teléfono físico.
+La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen. La Fase 2 inicia con una política `systemd-nspawn` restrictiva y pruebas negativas que impiden habilitar red compartida, capacidades o montajes del anfitrión sin una decisión explícita.
+
+Todavía no existe un rootfs Arch funcional ni soporte para un teléfono físico.
 
 ## Alcance
 
@@ -24,14 +26,16 @@ La arquitectura fundacional está documentada. El repositorio contiene un proces
 - [Arquitectura](docs/ARCHITECTURE.md)
 - [Hoja de ruta](docs/ROADMAP.md)
 - [Construcción ARM64 en QEMU](docs/BUILDING.md)
+- [Arch Executor](docs/ARCH_EXECUTOR.md)
 - [Estado y criterios de validación](docs/VALIDATION.md)
 - [ADR-0001: Debian Host y Arch Executor](docs/adr/0001-debian-host-arch-executor.md)
 - [ADR-0002: imagen Debian ARM64 para QEMU](docs/adr/0002-qemu-arm64-validation-image.md)
+- [ADR-0003: aislamiento del Arch Executor](docs/adr/0003-arch-executor-isolation.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
-## Primer objetivo verificable
+## Objetivo verificable actual
 
-La Fase 1 validó una imagen Debian ARM64 reproducible que arranca en QEMU `virt`, alcanza `multi-user.target` sin intervención manual y produce evidencia conservable de construcción, arranque e inspección.
+Construir un rootfs Arch Linux ARM AArch64 autenticado, iniciar el ejecutor sin red ni acceso general al anfitrión y demostrar que puede destruirse, fallar y reconstruirse sin afectar Debian.
 
 La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
@@ -39,7 +43,7 @@ La validación en QEMU no implica compatibilidad con un teléfono físico. El ha
 
 Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
 
-El workflow distingue las comprobaciones estáticas de la construcción y el arranque ARM64 reales. Las capacidades solo se consideran validadas cuando existe evidencia registrada.
+El workflow distingue pruebas estáticas, contratos simulados y ejecución real. Una política verde no prueba que el rootfs Arch arranque.
 
 ## Licencia
 
