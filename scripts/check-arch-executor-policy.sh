@@ -4,45 +4,67 @@ set -eu
 
 CONFIG=${1:-config/nspawn/morimil-arch.nspawn}
 
-fail() {
-    printf 'error: %s\n' "$*" >&2
+if [ ! -f "$CONFIG" ]; then
+    printf 'error: Arch executor policy is missing: %s\n' "$CONFIG" >&2
     exit 1
-}
-
-[ -f "$CONFIG" ] || fail "Arch executor policy is missing: $CONFIG"
-
-require_header() {
-    header=$1
-    count=$(grep -Ec "^[[:space:]]*\\[$header\\][[:space:]]*$" "$CONFIG" || true)
-    [ "$count" -eq 1 ] || fail "section [$header] must appear exactly once"
-}
-
-require_setting() {
-    key=$1
-    expected=$2
-    count=$(grep -Ec "^[[:space:]]*$key[[:space:]]*=" "$CONFIG" || true)
-    [ "$count" -eq 1 ] || fail "$key must appear exactly once"
-    grep -Eq "^[[:space:]]*$key[[:space:]]*=[[:space:]]*$expected[[:space:]]*$" "$CONFIG" ||
-        fail "$key must equal $expected"
-}
-
-require_header Exec
-require_header Files
-require_header Network
-
-require_setting Boot yes
-require_setting PrivateUsers pick
-require_setting NoNewPrivileges yes
-require_setting ReadOnly yes
-require_setting Volatile state
-require_setting Private yes
-require_setting VirtualEthernet no
-
-forbidden='Capability|AmbientCapability|Bind|BindReadOnly|Interface|MACVLAN|IPVLAN|Bridge|Zone|Port'
-if grep -En "^[[:space:]]*($forbidden)[[:space:]]*=" "$CONFIG" >/dev/null; then
-    grep -En "^[[:space:]]*($forbidden)[[:space:]]*=" "$CONFIG" >&2
-    fail 'the baseline policy must not grant capabilities, host mounts, interfaces, bridges, zones, or ports'
 fi
+
+python3 - "$CONFIG" <<'PY'
+import configparser
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+expected = {
+    "Exec": {
+        "Boot": "yes",
+        "PrivateUsers": "pick",
+        "NoNewPrivileges": "yes",
+    },
+    "Files": {
+        "ReadOnly": "yes",
+        "Volatile": "state",
+    },
+    "Network": {
+        "Private": "yes",
+        "VirtualEthernet": "no",
+    },
+}
+
+parser = configparser.ConfigParser(interpolation=None, strict=True)
+parser.optionxform = str
+
+try:
+    with path.open(encoding="utf-8") as handle:
+        parser.read_file(handle)
+except (OSError, UnicodeError, configparser.Error) as exc:
+    raise SystemExit(f"error: invalid Arch executor policy: {exc}") from exc
+
+actual_sections = set(parser.sections())
+expected_sections = set(expected)
+if actual_sections != expected_sections:
+    missing = sorted(expected_sections - actual_sections)
+    extra = sorted(actual_sections - expected_sections)
+    raise SystemExit(
+        f"error: section mismatch; missing={missing or 'none'} extra={extra or 'none'}"
+    )
+
+for section, required in expected.items():
+    actual = dict(parser.items(section))
+    if set(actual) != set(required):
+        missing = sorted(set(required) - set(actual))
+        extra = sorted(set(actual) - set(required))
+        raise SystemExit(
+            f"error: [{section}] key mismatch; "
+            f"missing={missing or 'none'} extra={extra or 'none'}"
+        )
+
+    for key, value in required.items():
+        if actual[key] != value:
+            raise SystemExit(
+                f"error: [{section}] {key} must equal {value}, got {actual[key]}"
+            )
+PY
 
 printf 'Arch executor policy passed.\n'
 printf 'This result validates configuration policy only; it does not prove that an Arch rootfs boots.\n'
