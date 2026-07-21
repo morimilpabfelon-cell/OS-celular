@@ -11,7 +11,7 @@ ROOT_DIR=$(CDPATH= cd -- "$TEST_DIR/../.." && pwd)
 CHECK="$ROOT_DIR/scripts/check-arch-executor-policy.sh"
 VALID="$ROOT_DIR/config/nspawn/morimil-arch.nspawn"
 TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT HUP INT TERM
+trap 'rm -rf "$TMP_DIR"' 0 HUP INT TERM
 
 fail() {
     printf 'error: %s\n' "$*" >&2
