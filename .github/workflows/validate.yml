@@ -64,17 +64,24 @@ jobs:
           cat shellcheck-scripts.txt
           exit "$status"
 
+      - name: ShellCheck contract tests
+        run: |
+          set +e
+          shellcheck -s sh tests/shell/*.sh > shellcheck-tests.txt 2>&1
+          status=$?
+          cat shellcheck-tests.txt
+          exit "$status"
+
       - name: Upload ShellCheck diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: shellcheck-diagnostics-${{ github.run_id }}
-          path: shellcheck-scripts.txt
-          if-no-files-found: error
+          path: |
+            shellcheck-scripts.txt
+            shellcheck-tests.txt
+          if-no-files-found: warn
           retention-days: 1
-
-      - name: ShellCheck contract tests
-        run: shellcheck -s sh tests/shell/*.sh
 
       - name: Run shell contract tests
         run: |
@@ -176,7 +183,6 @@ jobs:
             build/mmdebstrap-helper.sha256
             build/morimil-trixie-arm64.raw.identifiers
             build/morimil-trixie-arm64.raw.metadata
-            build/morimil-trixie-arm64.raw.sha256
             build/validation-status.txt
           if-no-files-found: warn
           retention-days: 7
