@@ -1,0 +1,12 @@
+[Exec]
+Boot=yes
+PrivateUsers=pick
+NoNewPrivileges=yes
+
+[Files]
+ReadOnly=yes
+Volatile=state
+
+[Network]
+Private=yes
+VirtualEthernet=no
