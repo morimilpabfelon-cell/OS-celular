@@ -25,12 +25,12 @@ fail() {
 [ "$(id -u)" -eq 0 ] || fail 'real Arch rootfs bootstrap validation must run as root'
 [ ! -e "$BUILD_DIR" ] || fail "build directory already exists: $BUILD_DIR"
 
-for command_name in file readelf find du sha256sum awk wc cp rm mkdir chmod; do
+for command_name in file readelf find du sha256sum awk wc cp rm mkdir chmod cat; do
     command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
 done
 
 mkdir -p "$EVIDENCE_DIR"
-chmod 0700 "$EVIDENCE_DIR"
+chmod 0755 "$BUILD_DIR" "$EVIDENCE_DIR"
 
 cleanup() {
     rm -rf "$MACHINE_ROOT" "$STATE_ROOT"
@@ -39,12 +39,16 @@ trap cleanup 0 HUP INT TERM
 
 sh "$ROOT_DIR/scripts/check-arch-rootfs-pin.sh" "$PIN_FILE" > "$EVIDENCE_DIR/pin-validation.txt"
 
-ARCH_ROOTFS_PIN_FILE=$PIN_FILE \
-ARCH_ROOTFS_MACHINE_ROOT=$MACHINE_ROOT \
-ARCH_ROOTFS_STATE_ROOT=$STATE_ROOT \
-ARCH_ROOTFS_DESTINATION=$DESTINATION \
-ARCH_ROOTFS_STATE_DIR=$STATE_DIR \
-sh "$ROOT_DIR/scripts/bootstrap-arch-rootfs.sh" > "$EVIDENCE_DIR/bootstrap.log" 2>&1
+if ! ARCH_ROOTFS_PIN_FILE=$PIN_FILE \
+    ARCH_ROOTFS_MACHINE_ROOT=$MACHINE_ROOT \
+    ARCH_ROOTFS_STATE_ROOT=$STATE_ROOT \
+    ARCH_ROOTFS_DESTINATION=$DESTINATION \
+    ARCH_ROOTFS_STATE_DIR=$STATE_DIR \
+    sh "$ROOT_DIR/scripts/bootstrap-arch-rootfs.sh" > "$EVIDENCE_DIR/bootstrap.log" 2>&1
+then
+    cat "$EVIDENCE_DIR/bootstrap.log" >&2
+    fail 'pinned Arch rootfs bootstrap failed'
+fi
 
 [ -d "$DESTINATION" ] || fail 'bootstrap did not publish the rootfs destination'
 [ -x "$DESTINATION/usr/bin/pacman" ] || fail 'published rootfs lacks executable pacman'
