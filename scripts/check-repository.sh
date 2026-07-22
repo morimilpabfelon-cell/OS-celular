@@ -23,6 +23,7 @@ for path in \
     README.md \
     CONTRIBUTING.md \
     config/arch-rootfs-release.env \
+    config/keys/archlinuxarm-build-system.asc \
     config/nspawn/morimil-arch.nspawn \
     docs/ARCHITECTURE.md \
     docs/ROADMAP.md \
