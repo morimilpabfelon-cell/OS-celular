@@ -14,8 +14,11 @@ PIN_FILE=$ROOT_DIR/config/arch-rootfs-release.env
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' 0 HUP INT TERM
 MOCK_BIN=$TMP_DIR/bin
+KEY_FILE=$TMP_DIR/arch-signing-key.asc
 mkdir -p "$MOCK_BIN"
+printf '%s\n' '-----BEGIN PGP PUBLIC KEY BLOCK-----' 'fixture' '-----END PGP PUBLIC KEY BLOCK-----' > "$KEY_FILE"
 
+EXPECTED_SIGNING_KEY_SHA256=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 EXPECTED_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 EXPECTED_SHA512=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 EXPECTED_SIGNATURE_SHA256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -67,6 +70,9 @@ case " $* " in
     *' --verify '*)
         [ "${MOCK_GPG_VERIFY_FAIL:-0}" -eq 0 ]
         ;;
+    *' --import '*)
+        [ "${MOCK_GPG_IMPORT_FAIL:-0}" -eq 0 ]
+        ;;
     *)
         :
         ;;
@@ -76,6 +82,7 @@ EOF
 cat > "$MOCK_BIN/sha256sum" <<'EOF'
 #!/bin/sh
 case "$1" in
+    *.asc) digest=${MOCK_SIGNING_KEY_SHA256:-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff} ;;
     *.sig) digest=${MOCK_SIGNATURE_SHA256:-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc} ;;
     *archive-list.txt) digest=${MOCK_ARCHIVE_LIST_SHA256:-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd} ;;
     *) digest=${MOCK_SHA256:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} ;;
@@ -105,9 +112,8 @@ case " $* " in
             shift
         done
         [ -n "$destination" ] || exit 2
-        mkdir -p "$destination/usr/lib" "$destination/usr/bin"
+        mkdir -p "$destination/usr/lib" "$destination/usr/bin" "$destination/etc"
         printf 'ID=archarm\n' > "$destination/usr/lib/os-release"
-        mkdir -p "$destination/etc"
         ln -s ../usr/lib/os-release "$destination/etc/os-release"
         printf '#!/bin/sh\n' > "$destination/usr/bin/pacman"
         chmod 0755 "$destination/usr/bin/pacman"
@@ -121,8 +127,10 @@ common_env() {
     state_dir=$2
     printf '%s\n' \
         "ARCH_ROOTFS_PIN_FILE=$PIN_FILE" \
+        "ARCH_ROOTFS_KEY_FILE=$KEY_FILE" \
         "ARCH_ROOTFS_MACHINE_ROOT=$TMP_DIR/machines" \
         "ARCH_ROOTFS_STATE_ROOT=$TMP_DIR/state" \
+        "ARCH_ROOTFS_EXPECTED_SIGNING_KEY_SHA256=$EXPECTED_SIGNING_KEY_SHA256" \
         "ARCH_ROOTFS_EXPECTED_SHA256=$EXPECTED_SHA256" \
         "ARCH_ROOTFS_EXPECTED_SHA512=$EXPECTED_SHA512" \
         "ARCH_ROOTFS_EXPECTED_SIZE=$EXPECTED_SIZE" \
@@ -161,6 +169,7 @@ run_success() {
     run_bootstrap "$destination" "$state_dir" >/dev/null
 
     test -x "$destination/usr/bin/pacman"
+    grep -Fqx "MORIMIL_ROOTFS_SIGNING_KEY_SHA256=$EXPECTED_SIGNING_KEY_SHA256" "$destination/etc/morimil/rootfs-source.env"
     grep -Fqx "MORIMIL_ROOTFS_SHA256=$EXPECTED_SHA256" "$destination/etc/morimil/rootfs-source.env"
     grep -Fqx "MORIMIL_ROOTFS_SHA512=$EXPECTED_SHA512" "$state_dir/rootfs-source.env"
     grep -Fqx "MORIMIL_ROOTFS_DESTINATION=$destination" "$state_dir/rootfs-source.env"
@@ -191,6 +200,15 @@ INVALID_PIN=$TMP_DIR/invalid-pin.env
 grep -v '^MORIMIL_ARCH_ROOTFS_SHA256=' "$PIN_FILE" > "$INVALID_PIN"
 expect_reject_without_publish 'invalid pin' "$TMP_DIR/machines/invalid-pin" "$TMP_DIR/state/invalid-pin" \
     "ARCH_ROOTFS_PIN_FILE=$INVALID_PIN"
+
+expect_reject_without_publish 'missing local key' "$TMP_DIR/machines/missing-key" "$TMP_DIR/state/missing-key" \
+    "ARCH_ROOTFS_KEY_FILE=$TMP_DIR/missing.asc"
+
+expect_reject_without_publish 'local key SHA-256 mismatch' "$TMP_DIR/machines/key-sha" "$TMP_DIR/state/key-sha" \
+    'MOCK_SIGNING_KEY_SHA256=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+
+expect_reject_without_publish 'local key import failure' "$TMP_DIR/machines/key-import" "$TMP_DIR/state/key-import" \
+    'MOCK_GPG_IMPORT_FAIL=1'
 
 expect_reject_without_publish 'HTTP transport' "$TMP_DIR/machines/http" "$TMP_DIR/state/http" \
     'ARCH_ROOTFS_URL=http://example.invalid/rootfs.tar.gz'
