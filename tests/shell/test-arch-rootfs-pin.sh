@@ -37,9 +37,13 @@ FINGERPRINT=$TMP_DIR/fingerprint.env
 sed 's/^MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT=.*/MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT=0000000000000000000000000000000000000000/' "$VALID" > "$FINGERPRINT"
 expect_reject 'incorrect authority fingerprint' "$FINGERPRINT"
 
+KEY_SHA=$TMP_DIR/key-sha.env
+sed 's/^MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256=.*/MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaag/' "$VALID" > "$KEY_SHA"
+expect_reject 'non-hexadecimal signing key SHA-256' "$KEY_SHA"
+
 SHA=$TMP_DIR/sha.env
 sed 's/^MORIMIL_ARCH_ROOTFS_SHA256=.*/MORIMIL_ARCH_ROOTFS_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaag/' "$VALID" > "$SHA"
-expect_reject 'non-hexadecimal SHA-256' "$SHA"
+expect_reject 'non-hexadecimal rootfs SHA-256' "$SHA"
 
 UNKNOWN=$TMP_DIR/unknown.env
 {
@@ -55,8 +59,12 @@ DUPLICATE=$TMP_DIR/duplicate.env
 } > "$DUPLICATE"
 expect_reject 'duplicate pin key' "$DUPLICATE"
 
-MISSING=$TMP_DIR/missing.env
-grep -v '^MORIMIL_ARCH_ROOTFS_SIGNATURE_SHA256=' "$VALID" > "$MISSING"
-expect_reject 'missing signature checksum' "$MISSING"
+MISSING_KEY=$TMP_DIR/missing-key.env
+grep -v '^MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256=' "$VALID" > "$MISSING_KEY"
+expect_reject 'missing signing key checksum' "$MISSING_KEY"
+
+MISSING_SIGNATURE=$TMP_DIR/missing-signature.env
+grep -v '^MORIMIL_ARCH_ROOTFS_SIGNATURE_SHA256=' "$VALID" > "$MISSING_SIGNATURE"
+expect_reject 'missing signature checksum' "$MISSING_SIGNATURE"
 
 printf 'Arch rootfs pin contract tests passed.\n'
