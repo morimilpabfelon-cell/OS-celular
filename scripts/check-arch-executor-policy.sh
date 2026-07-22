@@ -3,18 +3,44 @@
 set -eu
 
 CONFIG=${1:-config/nspawn/morimil-arch.nspawn}
+LIMITS_CONFIG=${2:-config/arch-executor-resource-limits.env}
 
 if [ ! -f "$CONFIG" ]; then
     printf 'error: Arch executor policy is missing: %s\n' "$CONFIG" >&2
     exit 1
 fi
+if [ ! -f "$LIMITS_CONFIG" ]; then
+    printf 'error: Arch executor resource limits are missing: %s\n' "$LIMITS_CONFIG" >&2
+    exit 1
+fi
 
-python3 - "$CONFIG" <<'PY'
+python3 - "$CONFIG" "$LIMITS_CONFIG" <<'PY'
 import configparser
 from pathlib import Path
+import re
 import sys
 
-path = Path(sys.argv[1])
+policy_path = Path(sys.argv[1])
+limits_path = Path(sys.argv[2])
+
+limits: dict[str, str] = {}
+for number, raw_line in enumerate(limits_path.read_text(encoding="utf-8").splitlines(), 1):
+    if not raw_line or raw_line.startswith("#"):
+        continue
+    match = re.fullmatch(r"([A-Z0-9_]+)=([0-9]+)", raw_line)
+    if match is None:
+        raise SystemExit(f"error: invalid resource limit line {number}: {raw_line!r}")
+    key, value = match.groups()
+    if key in limits:
+        raise SystemExit(f"error: duplicate resource limit: {key}")
+    limits[key] = value
+
+try:
+    var_size = limits["MORIMIL_ARCH_EXECUTOR_VAR_SIZE_BYTES"]
+    var_inodes = limits["MORIMIL_ARCH_EXECUTOR_VAR_INODES"]
+except KeyError as exc:
+    raise SystemExit(f"error: policy validation is missing resource limit {exc.args[0]}") from exc
+
 expected = {
     "Exec": {
         "Boot": "yes",
@@ -27,8 +53,10 @@ expected = {
     },
     "Files": {
         "ReadOnly": "yes",
-        "Volatile": "state",
         "PrivateUsersOwnership": "off",
+        "TemporaryFileSystem": (
+            f"/var:mode=0755,nodev,nosuid,size={var_size},nr_inodes={var_inodes}"
+        ),
     },
     "Network": {
         "Private": "yes",
@@ -40,7 +68,7 @@ parser = configparser.ConfigParser(interpolation=None, strict=True)
 parser.optionxform = str
 
 try:
-    with path.open(encoding="utf-8") as handle:
+    with policy_path.open(encoding="utf-8") as handle:
         parser.read_file(handle)
 except (OSError, UnicodeError, configparser.Error) as exc:
     raise SystemExit(f"error: invalid Arch executor policy: {exc}") from exc

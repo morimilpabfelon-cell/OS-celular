@@ -19,10 +19,13 @@ DESTINATION=${ARCH_EXECUTOR_ROOTFS:-$MACHINE_ROOT/$MACHINE}
 STATE_DIR=${ARCH_EXECUTOR_STATE_DIR:-$STATE_ROOT/arch}
 POLICY_FILE=${ARCH_EXECUTOR_POLICY_FILE:-$ROOT_DIR/config/nspawn/morimil-arch.nspawn}
 INSTALLED_POLICY=${ARCH_EXECUTOR_INSTALLED_POLICY:-/etc/systemd/nspawn/$MACHINE.nspawn}
+LIMITS_FILE=${ARCH_EXECUTOR_LIMITS_FILE:-$ROOT_DIR/config/arch-executor-resource-limits.env}
+INSTALLED_LIMITS=${ARCH_EXECUTOR_INSTALLED_LIMITS:-/etc/morimil/arch-executor-resource-limits.env}
 PIN_FILE=${ARCH_ROOTFS_PIN_FILE:-$ROOT_DIR/config/arch-rootfs-release.env}
 KEY_FILE=${ARCH_ROOTFS_KEY_FILE:-$ROOT_DIR/config/keys/archlinuxarm-build-system.asc}
 BOOTSTRAP_SCRIPT=${ARCH_EXECUTOR_BOOTSTRAP_SCRIPT:-$ROOT_DIR/scripts/bootstrap-arch-rootfs.sh}
 PREPARE_SCRIPT=${ARCH_EXECUTOR_PREPARE_SCRIPT:-$ROOT_DIR/scripts/prepare-arch-executor-rootfs.sh}
+CHECK_LIMITS_SCRIPT=${ARCH_EXECUTOR_CHECK_LIMITS_SCRIPT:-$ROOT_DIR/scripts/check-arch-executor-resource-limits.sh}
 UNIT=${ARCH_EXECUTOR_UNIT:-morimil-arch-executor.service}
 LOCK_FILE=${ARCH_EXECUTOR_LOCK_FILE:-/run/lock/morimil-arch-executor.lock}
 BOOT_TIMEOUT=${ARCH_EXECUTOR_BOOT_TIMEOUT:-180}
@@ -40,8 +43,8 @@ Usage: sudo sh scripts/morimil-arch-executor.sh COMMAND
 
 Commands:
   create   Download, authenticate and prepare the pinned Arch rootfs.
-  start    Start the prepared executor with the trusted isolation policy.
-  status   Print stable machine-readable lifecycle state.
+  start    Start the prepared executor with enforced resource limits.
+  status   Print stable machine-readable lifecycle and limit state.
   stop     Request a clean shutdown and preserve the rootfs.
   destroy  Remove a stopped executor, its state and installed policy.
   rebuild  Stop, destroy and recreate the executor; leave it stopped.
@@ -77,6 +80,7 @@ for path_value in \
     "$DESTINATION" \
     "$STATE_DIR" \
     "$INSTALLED_POLICY" \
+    "$INSTALLED_LIMITS" \
     "$LOCK_FILE"
 do
     case "$path_value" in
@@ -93,14 +97,34 @@ case "$INSTALLED_POLICY" in
     */"$MACHINE.nspawn") ;;
     *) fail 'installed policy filename must match the executor machine name' ;;
 esac
-case "$DESTINATION:$STATE_DIR:$INSTALLED_POLICY:$LOCK_FILE" in
+case "$DESTINATION:$STATE_DIR:$INSTALLED_POLICY:$INSTALLED_LIMITS:$LOCK_FILE" in
     *'/../'*|*'/..:'*|*'/./'*|*'/.:'*) fail 'lifecycle paths must not contain dot path components' ;;
 esac
 
 [ "$(id -u)" -eq 0 ] || fail 'root privileges are required for executor lifecycle operations'
-for command_name in awk chmod cmp cp flock id machinectl mkdir mv nsenter rm sleep systemctl systemd-run; do
+for command_name in awk chmod cmp cp flock id machinectl mkdir mv nsenter rm sha256sum sleep systemctl systemd-run; do
     command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
 done
+[ -f "$LIMITS_FILE" ] || fail "resource limit configuration is missing: $LIMITS_FILE"
+[ -f "$CHECK_LIMITS_SCRIPT" ] || fail "resource limit validator is missing: $CHECK_LIMITS_SCRIPT"
+sh "$CHECK_LIMITS_SCRIPT" "$LIMITS_FILE" >/dev/null
+sh "$ROOT_DIR/scripts/check-arch-executor-policy.sh" "$POLICY_FILE" "$LIMITS_FILE" >/dev/null
+
+limit_value() {
+    key=$1
+    value=$(awk -F= -v key="$key" '$1 == key { print $2; exit }' "$LIMITS_FILE")
+    [ -n "$value" ] || fail "resource limit is missing after validation: $key"
+    printf '%s\n' "$value"
+}
+
+CPU_QUOTA_PERCENT=$(limit_value MORIMIL_ARCH_EXECUTOR_CPU_QUOTA_PERCENT)
+MEMORY_HIGH_BYTES=$(limit_value MORIMIL_ARCH_EXECUTOR_MEMORY_HIGH_BYTES)
+MEMORY_MAX_BYTES=$(limit_value MORIMIL_ARCH_EXECUTOR_MEMORY_MAX_BYTES)
+MEMORY_SWAP_MAX_BYTES=$(limit_value MORIMIL_ARCH_EXECUTOR_MEMORY_SWAP_MAX_BYTES)
+TASKS_MAX=$(limit_value MORIMIL_ARCH_EXECUTOR_TASKS_MAX)
+VAR_SIZE_BYTES=$(limit_value MORIMIL_ARCH_EXECUTOR_VAR_SIZE_BYTES)
+VAR_INODES=$(limit_value MORIMIL_ARCH_EXECUTOR_VAR_INODES)
+LIMITS_SHA256=$(sha256sum "$LIMITS_FILE" | awk '{ print $1 }')
 
 mkdir -p "${LOCK_FILE%/*}"
 exec 9> "$LOCK_FILE"
@@ -128,11 +152,18 @@ policy_matches() {
         cmp "$POLICY_FILE" "$INSTALLED_POLICY" >/dev/null 2>&1
 }
 
+limits_match() {
+    [ -f "$LIMITS_FILE" ] && \
+        [ -f "$INSTALLED_LIMITS" ] && \
+        cmp "$LIMITS_FILE" "$INSTALLED_LIMITS" >/dev/null 2>&1
+}
+
 executor_is_created() {
     [ -d "$DESTINATION" ] && \
         [ -f "$SOURCE_FILE" ] && \
         [ -f "$PREPARED_FILE" ] && \
-        policy_matches
+        policy_matches && \
+        limits_match
 }
 
 run_in_executor() {
@@ -185,29 +216,39 @@ wait_until_stopped() {
     return 1
 }
 
-install_policy() {
-    sh "$ROOT_DIR/scripts/check-arch-executor-policy.sh" "$POLICY_FILE" >/dev/null
-    mkdir -p "${INSTALLED_POLICY%/*}"
+install_configuration() {
+    mkdir -p "${INSTALLED_POLICY%/*}" "${INSTALLED_LIMITS%/*}"
+
     cp "$POLICY_FILE" "$INSTALLED_POLICY.tmp"
-    chmod 0644 "$INSTALLED_POLICY.tmp"
+    cp "$LIMITS_FILE" "$INSTALLED_LIMITS.tmp"
+    chmod 0644 "$INSTALLED_POLICY.tmp" "$INSTALLED_LIMITS.tmp"
     mv "$INSTALLED_POLICY.tmp" "$INSTALLED_POLICY"
-    cmp "$POLICY_FILE" "$INSTALLED_POLICY" >/dev/null 2>&1 || fail 'installed nspawn policy differs from repository policy'
+    mv "$INSTALLED_LIMITS.tmp" "$INSTALLED_LIMITS"
+
+    policy_matches || fail 'installed nspawn policy differs from repository policy'
+    limits_match || fail 'installed resource limits differ from repository limits'
 }
 
 rollback_create() {
     rm -rf "$DESTINATION" "$STATE_DIR"
-    rm -f "$INSTALLED_POLICY" "$INSTALLED_POLICY.tmp"
+    rm -f \
+        "$INSTALLED_POLICY" \
+        "$INSTALLED_POLICY.tmp" \
+        "$INSTALLED_LIMITS" \
+        "$INSTALLED_LIMITS.tmp"
 }
 
 command_create() {
     [ ! -e "$DESTINATION" ] || fail "executor rootfs already exists: $DESTINATION"
     [ ! -e "$STATE_DIR" ] || fail "executor state already exists: $STATE_DIR"
+    [ ! -e "$INSTALLED_POLICY" ] || fail "installed executor policy already exists: $INSTALLED_POLICY"
+    [ ! -e "$INSTALLED_LIMITS" ] || fail "installed resource limits already exist: $INSTALLED_LIMITS"
     [ -f "$PIN_FILE" ] || fail "rootfs pin is missing: $PIN_FILE"
     [ -f "$KEY_FILE" ] || fail "rootfs signing key is missing: $KEY_FILE"
     [ -f "$BOOTSTRAP_SCRIPT" ] || fail "bootstrap script is missing: $BOOTSTRAP_SCRIPT"
     [ -f "$PREPARE_SCRIPT" ] || fail "prepare script is missing: $PREPARE_SCRIPT"
 
-    install_policy
+    install_configuration
 
     if ! ARCH_ROOTFS_PIN_FILE=$PIN_FILE \
          ARCH_ROOTFS_KEY_FILE=$KEY_FILE \
@@ -235,11 +276,12 @@ command_create() {
         fail 'executor creation did not produce a complete lifecycle state'
     fi
 
-    printf 'machine=%s\nstate=stopped\nresult=created\n' "$MACHINE"
+    printf 'machine=%s\nstate=stopped\nresult=created\nresource_limits_sha256=%s\n' \
+        "$MACHINE" "$LIMITS_SHA256"
 }
 
 command_start() {
-    executor_is_created || fail 'executor is not completely created or its policy differs'
+    executor_is_created || fail 'executor is not completely created or its policy or limits differ'
     if machine_is_running; then
         printf 'machine=%s\nstate=running\nresult=already-running\n' "$MACHINE"
         return 0
@@ -258,9 +300,19 @@ command_start() {
         --property=Type=simple \
         --property=KillMode=mixed \
         --property=TimeoutStopSec=30s \
+        --property=Delegate=yes \
+        --property=CPUAccounting=yes \
+        --property="CPUQuota=$CPU_QUOTA_PERCENT%" \
+        --property=MemoryAccounting=yes \
+        --property="MemoryHigh=$MEMORY_HIGH_BYTES" \
+        --property="MemoryMax=$MEMORY_MAX_BYTES" \
+        --property="MemorySwapMax=$MEMORY_SWAP_MAX_BYTES" \
+        --property=TasksAccounting=yes \
+        --property="TasksMax=$TASKS_MAX" \
         -- \
         /usr/bin/systemd-nspawn \
         --quiet \
+        --keep-unit \
         --machine="$MACHINE" \
         --directory="$DESTINATION" \
         --settings=trusted \
@@ -272,7 +324,8 @@ command_start() {
         fail 'executor did not reach morimil-executor.target'
     fi
 
-    printf 'machine=%s\nstate=running\nresult=started\n' "$MACHINE"
+    printf 'machine=%s\nstate=running\nresult=started\nresource_limits_sha256=%s\n' \
+        "$MACHINE" "$LIMITS_SHA256"
 }
 
 command_status() {
@@ -283,7 +336,11 @@ command_status() {
     rootfs_sha256=
     uid_shift=
 
-    if [ -d "$DESTINATION" ] || [ -e "$STATE_DIR" ] || [ -e "$INSTALLED_POLICY" ]; then
+    if [ -d "$DESTINATION" ] || \
+       [ -e "$STATE_DIR" ] || \
+       [ -e "$INSTALLED_POLICY" ] || \
+       [ -e "$INSTALLED_LIMITS" ]
+    then
         state=inconsistent
     fi
     if executor_is_created; then
@@ -300,8 +357,22 @@ command_status() {
         state=inconsistent
     fi
 
-    printf 'machine=%s\ncreated=%s\nrunning=%s\nstate=%s\nleader=%s\nrootfs_sha256=%s\nuid_shift=%s\n' \
-        "$MACHINE" "$created" "$running" "$state" "$leader" "$rootfs_sha256" "$uid_shift"
+    printf 'machine=%s\ncreated=%s\nrunning=%s\nstate=%s\nleader=%s\nrootfs_sha256=%s\nuid_shift=%s\nresource_limits_sha256=%s\ncpu_quota_percent=%s\nmemory_high_bytes=%s\nmemory_max_bytes=%s\nmemory_swap_max_bytes=%s\ntasks_max=%s\nvar_size_bytes=%s\nvar_inodes=%s\n' \
+        "$MACHINE" \
+        "$created" \
+        "$running" \
+        "$state" \
+        "$leader" \
+        "$rootfs_sha256" \
+        "$uid_shift" \
+        "$LIMITS_SHA256" \
+        "$CPU_QUOTA_PERCENT" \
+        "$MEMORY_HIGH_BYTES" \
+        "$MEMORY_MAX_BYTES" \
+        "$MEMORY_SWAP_MAX_BYTES" \
+        "$TASKS_MAX" \
+        "$VAR_SIZE_BYTES" \
+        "$VAR_INODES"
 
     [ "$state" != inconsistent ]
 }
@@ -336,13 +407,21 @@ command_destroy() {
     if [ -e "$INSTALLED_POLICY" ] && ! policy_matches; then
         fail 'installed policy differs from the repository policy; refusing to remove it'
     fi
+    if [ -e "$INSTALLED_LIMITS" ] && ! limits_match; then
+        fail 'installed resource limits differ from the repository limits; refusing to remove them'
+    fi
 
     rm -rf "$DESTINATION" "$STATE_DIR"
-    rm -f "$INSTALLED_POLICY" "$INSTALLED_POLICY.tmp"
+    rm -f \
+        "$INSTALLED_POLICY" \
+        "$INSTALLED_POLICY.tmp" \
+        "$INSTALLED_LIMITS" \
+        "$INSTALLED_LIMITS.tmp"
 
     [ ! -e "$DESTINATION" ] || fail 'executor rootfs removal failed'
     [ ! -e "$STATE_DIR" ] || fail 'executor state removal failed'
     [ ! -e "$INSTALLED_POLICY" ] || fail 'executor policy removal failed'
+    [ ! -e "$INSTALLED_LIMITS" ] || fail 'executor resource limit removal failed'
 
     printf 'machine=%s\nstate=absent\nresult=destroyed\n' "$MACHINE"
 }

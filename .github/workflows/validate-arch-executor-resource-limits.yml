@@ -1,0 +1,133 @@
+name: Arch executor resource limits
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arch-executor-resource-limits-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Validate resource limit contracts
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.body, '<!-- run-arch-executor-resource-limits -->')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends shellcheck
+
+      - name: Validate resource limit sources
+        run: |
+          set -eu
+          sh -n \
+            scripts/check-arch-executor-resource-limits.sh \
+            scripts/check-arch-executor-resource-limits-evidence.sh \
+            scripts/ci-validate-arch-executor-resource-limits.sh \
+            scripts/morimil-arch-executor.sh \
+            tests/shell/test-arch-executor-resource-limits.sh \
+            tests/shell/test-arch-executor-resource-limits-evidence.sh
+          shellcheck -s sh \
+            scripts/check-arch-executor-resource-limits.sh \
+            scripts/check-arch-executor-resource-limits-evidence.sh \
+            scripts/ci-validate-arch-executor-resource-limits.sh \
+            scripts/morimil-arch-executor.sh \
+            tests/shell/test-arch-executor-resource-limits.sh \
+            tests/shell/test-arch-executor-resource-limits-evidence.sh
+          sh scripts/check-arch-executor-resource-limits.sh
+          sh scripts/check-arch-executor-policy.sh \
+            config/nspawn/morimil-arch.nspawn \
+            config/arch-executor-resource-limits.env
+          sh tests/shell/test-arch-executor-resource-limits.sh
+          sh tests/shell/test-arch-executor-resource-limits-evidence.sh
+          sh tests/shell/test-arch-executor-lifecycle.sh
+          sh tests/shell/test-arch-executor-policy.sh
+
+  arm64:
+    name: Enforce Arch executor limits on native ARM64
+    needs: contracts
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install native resource validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            binutils \
+            ca-certificates \
+            coreutils \
+            curl \
+            file \
+            gnupg \
+            gpgv \
+            libarchive-tools \
+            systemd-container \
+            util-linux
+
+      - name: Create, limit, inspect, and destroy executor
+        run: |
+          set -euo pipefail
+          sudo env \
+            BUILD_DIR="$GITHUB_WORKSPACE/build/arch-executor-resource-limits" \
+            sh scripts/ci-validate-arch-executor-resource-limits.sh \
+            2>&1 | tee arch-executor-resource-limits-driver.log
+
+      - name: Prepare resource evidence permissions
+        if: always()
+        run: |
+          set -eu
+          build=build/arch-executor-resource-limits
+          evidence=$build/evidence
+          if [ -d "$build" ]; then
+            sudo chown "$(id -u):$(id -g)" build "$build"
+            chmod 0755 build "$build"
+          fi
+          if [ -d "$evidence" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$evidence"
+            chmod 0755 "$evidence"
+            find "$evidence" -maxdepth 1 -type f -exec chmod 0644 {} +
+          fi
+          if [ -f arch-executor-resource-limits-driver.log ]; then
+            sudo chown "$(id -u):$(id -g)" arch-executor-resource-limits-driver.log
+            chmod 0644 arch-executor-resource-limits-driver.log
+          fi
+
+      - name: Upload Arch executor resource evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morimil-arch-executor-resource-limits-${{ github.run_id }}
+          path: |
+            build/arch-executor-resource-limits/evidence/
+            arch-executor-resource-limits-driver.log
+          if-no-files-found: warn
+          retention-days: 7

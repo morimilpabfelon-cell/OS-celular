@@ -25,7 +25,9 @@ Este documento separa pruebas estáticas, contratos simulados y ejecución real.
 | Fallo forzado sin afectar Debian | Validado | host antes/después |
 | Destrucción y reconstrucción | Validadas | dos generaciones del mismo pin |
 | Ciclo operacional | Validado | ejecución `29890214148` |
-| Límites de recursos | Pendientes | CPU, memoria y almacenamiento |
+| Perfil de límites declarativo | Automatizado | contratos de Fase 2F |
+| Límites cgroup y `/var` | Validados | ejecución `29892193434` |
+| Lista permitida de montajes | Pendiente | contrato explícito sin bind libre |
 | Soporte de teléfono físico | No iniciado | matriz por componente |
 
 ## Pruebas estáticas
@@ -53,7 +55,7 @@ done
 python3 -m unittest discover -s tests/python -p 'test_*.py' -v
 ```
 
-Las pruebas estáticas no descargan rootfs ni prueban un kernel o contenedor real.
+Las pruebas estáticas no descargan rootfs ni prueban un kernel, contenedor o cgroup real.
 
 ## Construcción Debian ARM64
 
@@ -177,22 +179,91 @@ El artefacto contiene 44 archivos y tuvo digest:
 sha256:69123abf328f4778e77db3f0dfd368b0a9dec7b3e5f711c8afc966b3474955d5
 ```
 
-Los contratos se validan con:
+## Límites de recursos
 
-```sh
-sh tests/shell/test-arch-executor-lifecycle.sh
-sh tests/shell/test-arch-executor-lifecycle-evidence.sh
+El perfil canónico de Fase 2F es:
+
+```text
+CPUQuota=100%
+MemoryHigh=536870912
+MemoryMax=805306368
+MemorySwapMax=0
+TasksMax=256
+var_size_bytes=268435456
+var_inodes=65536
 ```
 
-La evidencia real se comprueba mediante:
+Los contratos estáticos verifican:
+
+- claves exactas y valores numéricos;
+- relación `MemoryHigh <= MemoryMax`;
+- swap desactivada;
+- rangos máximos y mínimos;
+- correspondencia exacta entre el archivo declarativo y `TemporaryFileSystem=/var`;
+- presencia de `--keep-unit`, `Delegate=yes` y propiedades de cgroup;
+- rechazo de evidencia alterada.
+
+La ejecución AArch64 `29892193434` validó el head `66fa058a2aaa5692d1c2d7ae578cdce6e5a17b7e`.
+
+Resultados observados:
+
+```text
+unit_cgroup=/system.slice/morimil-arch-resource-limits-ci.service
+leader_cgroup=/system.slice/morimil-arch-resource-limits-ci.service/payload/init.scope
+cpu.max=100000 100000
+memory.high=536870912
+memory.max=805306368
+memory.swap.max=0
+pids.max=256
+var_fstype=tmpfs
+var_size_bytes=268435456
+var_inodes=65536
+var_overflow_rejected=yes
+```
+
+La prueba confirmó:
+
+1. cgroup v2 activo;
+2. PID 1 de Arch contenido en la unidad limitada;
+3. CPU equivalente a una CPU completa;
+4. presión de memoria desde 512 MiB y límite duro de 768 MiB;
+5. swap completamente desactivada;
+6. máximo de 256 tareas;
+7. `/var` limitado a 256 MiB y 65 536 inodos;
+8. reserva superior al límite rechazada;
+9. rootfs, estado, política, perfil y registro eliminados;
+10. Debian sin cambios en boot ID, red, namespace y archivo centinela.
+
+El perfil declarado tuvo SHA-256:
+
+```text
+3246d3497f9da39d5fc13523467cd95688042806c6a1ad0a2e7389563e57132a
+```
+
+El artefacto tuvo digest:
+
+```text
+morimil-arch-executor-resource-limits-29892193434
+sha256:e51a51f81225dbf7e5fe1bc500cc358abf29bd7ea8e56cb3fe26905c63f2b086
+```
+
+Contratos:
 
 ```sh
-sh scripts/check-arch-executor-lifecycle-evidence.sh build/arch-executor-lifecycle/evidence
+sh tests/shell/test-arch-executor-resource-limits.sh
+sh tests/shell/test-arch-executor-resource-limits-evidence.sh
+```
+
+Validación de evidencia:
+
+```sh
+sh scripts/check-arch-executor-resource-limits-evidence.sh \
+  build/arch-executor-resource-limits/evidence
 ```
 
 ## Evidencia conservada
 
-Los artefactos de CI conservan únicamente logs, estados, metadata, mapas de namespaces, opciones de montaje y checksums.
+Los artefactos de CI conservan únicamente logs, estados, metadata, mapas de namespaces, archivos cgroup, opciones de montaje y checksums.
 
 No se conservan:
 
@@ -205,4 +276,4 @@ No se conservan:
 
 QEMU `virt` y `systemd-nspawn` no representan un teléfono. Las validaciones actuales no demuestran pantalla táctil, batería, suspensión móvil, módem, cámara, sensores, GPU, audio, consumo energético ni compatibilidad de firmware.
 
-Tampoco demuestran todavía límites definitivos de CPU, memoria, almacenamiento o una lista permitida de montajes de datos.
+La Fase 2F tampoco autoriza bind mounts ni datos persistentes. La lista permitida de montajes se definirá en un bloque separado antes de iniciar Morimil Core.

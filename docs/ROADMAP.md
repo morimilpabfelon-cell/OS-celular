@@ -41,7 +41,7 @@ Resultado validado:
 - UID/GID privados;
 - red privada sin `veth`;
 - raíz de solo lectura;
-- estado volátil;
+- estado temporal para escrituras;
 - sin bind mounts, capacidades, puertos ni dispositivos adicionales.
 
 ### Fase 2B — Bootstrap autenticado
@@ -93,14 +93,30 @@ Resultado validado:
 
 Evidencia principal: ejecución AArch64 `29890214148` y artefacto `morimil-arch-executor-lifecycle-29890214148`.
 
+### Fase 2F — Límites de recursos
+
+**Estado:** completada.
+
+Perfil validado:
+
+- `CPUQuota=100%`;
+- `MemoryHigh=536870912` bytes;
+- `MemoryMax=805306368` bytes;
+- `MemorySwapMax=0`;
+- `TasksMax=256`;
+- `/var` en `tmpfs` de `268435456` bytes y `65536` inodos;
+- PID 1 de Arch contenido en el cgroup de la unidad limitada;
+- configuración instalada idéntica a la versión del repositorio;
+- reserva superior al límite de `/var` rechazada;
+- Debian sin cambios y limpieza completa.
+
+Evidencia principal: ejecución AArch64 `29892193434` y artefacto `morimil-arch-executor-resource-limits-29892193434`, digest `sha256:e51a51f81225dbf7e5fe1bc500cc358abf29bd7ea8e56cb3fe26905c63f2b086`.
+
 ### Pendiente para cerrar Fase 2
 
-- límites de CPU;
-- límites de memoria;
-- límites de almacenamiento;
 - lista permitida explícita para futuros montajes de datos.
 
-**Puerta de salida:** destruir o corromper el executor no debe afectar Debian, y el sistema debe poder reconstruirlo desde el pin aprobado.
+**Puerta de salida:** destruir o corromper el executor no debe afectar Debian, el sistema debe poder reconstruirlo desde el pin aprobado y ningún proceso de Arch debe escapar de los límites impuestos por Debian.
 
 ## Fase 3 — Morimil Core mínimo
 
@@ -110,7 +126,7 @@ Capacidades iniciales:
 
 - consultar estado del anfitrión;
 - invocar operaciones delimitadas del Arch Executor;
-- imponer límites;
+- seleccionar perfiles de límites aprobados;
 - registrar eventos estructurados;
 - exponer una API local autenticada;
 - operar sin interfaz gráfica.
