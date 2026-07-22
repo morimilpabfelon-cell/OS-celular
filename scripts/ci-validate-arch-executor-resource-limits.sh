@@ -193,8 +193,10 @@ systemctl show "$UNIT" \
 
 run_in_executor /usr/bin/findmnt -n -o FSTYPE /var > "$EVIDENCE_DIR/var-fstype.txt"
 run_in_executor /usr/bin/findmnt -n -o OPTIONS /var > "$EVIDENCE_DIR/var-options.txt"
-run_in_executor /usr/bin/df -B1 --output=size /var | awk 'NR == 2 { print $1 }' > "$EVIDENCE_DIR/var-size-bytes.txt"
-run_in_executor /usr/bin/df -i --output=itotal /var | awk 'NR == 2 { print $1 }' > "$EVIDENCE_DIR/var-inodes.txt"
+run_in_executor /usr/bin/df -B1 --output=size /var > "$EVIDENCE_DIR/var-size-df.txt"
+awk 'NR == 2 { print $1 }' "$EVIDENCE_DIR/var-size-df.txt" > "$EVIDENCE_DIR/var-size-bytes.txt"
+run_in_executor /usr/bin/df --output=itotal /var > "$EVIDENCE_DIR/var-inodes-df.txt"
+awk 'NR == 2 { print $1 }' "$EVIDENCE_DIR/var-inodes-df.txt" > "$EVIDENCE_DIR/var-inodes.txt"
 run_in_executor /usr/bin/test -x /usr/bin/fallocate || fail 'executor rootfs lacks fallocate for storage enforcement testing'
 
 overflow_size=$((VAR_SIZE_BYTES + 4096))
