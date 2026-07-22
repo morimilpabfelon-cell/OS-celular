@@ -1,3 +1,0 @@
-# The Arch runtime validator passes one single-quoted shell program to the guest.
-# Its variables must expand inside the container, not in the host validation shell.
-disable=SC2016
