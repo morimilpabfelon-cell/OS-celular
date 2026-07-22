@@ -11,6 +11,7 @@ esac
 ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build/arch-rootfs-bootstrap}
 PIN_FILE=${ARCH_ROOTFS_PIN_FILE:-$ROOT_DIR/config/arch-rootfs-release.env}
+STATUS_FILE=${ARCH_ROOTFS_CI_STATUS_FILE:-$ROOT_DIR/arch-rootfs-bootstrap-status.txt}
 MACHINE_ROOT=$BUILD_DIR/machines
 STATE_ROOT=$BUILD_DIR/state
 DESTINATION=$MACHINE_ROOT/morimil-arch
@@ -24,8 +25,9 @@ fail() {
 
 [ "$(id -u)" -eq 0 ] || fail 'real Arch rootfs bootstrap validation must run as root'
 [ ! -e "$BUILD_DIR" ] || fail "build directory already exists: $BUILD_DIR"
+[ ! -e "$STATUS_FILE" ] || fail "status file already exists: $STATUS_FILE"
 
-for command_name in file readelf find du sha256sum awk wc cp rm mkdir chmod cat; do
+for command_name in file readelf find du sha256sum awk wc cp rm mkdir chmod cat tail; do
     command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
 done
 
@@ -46,7 +48,14 @@ if ! ARCH_ROOTFS_PIN_FILE=$PIN_FILE \
     ARCH_ROOTFS_STATE_DIR=$STATE_DIR \
     sh "$ROOT_DIR/scripts/bootstrap-arch-rootfs.sh" > "$EVIDENCE_DIR/bootstrap.log" 2>&1
 then
-    cat "$EVIDENCE_DIR/bootstrap.log" >&2
+    {
+        printf 'result=failure\n'
+        printf 'stage=bootstrap\n'
+        printf '%s\n' '--- bootstrap log tail ---'
+        tail -n 40 "$EVIDENCE_DIR/bootstrap.log"
+    } > "$STATUS_FILE"
+    chmod 0644 "$STATUS_FILE"
+    cat "$STATUS_FILE" >&2
     fail 'pinned Arch rootfs bootstrap failed'
 fi
 
@@ -124,7 +133,8 @@ rm -rf "$MACHINE_ROOT" "$STATE_ROOT"
 [ ! -e "$STATE_DIR" ] || fail 'state cleanup failed'
 printf 'rootfs_removed=yes\nstate_removed=yes\n' > "$EVIDENCE_DIR/cleanup-status.txt"
 printf 'MORIMIL_ARCH_ROOTFS_BOOTSTRAP_VALIDATED=yes\n' > "$EVIDENCE_DIR/validation-status.txt"
-chmod 0644 "$EVIDENCE_DIR"/*
+printf 'result=success\nstage=complete\n' > "$STATUS_FILE"
+chmod 0644 "$STATUS_FILE" "$EVIDENCE_DIR"/*
 
 printf 'Pinned Arch Linux ARM rootfs bootstrap validation passed.\n'
 printf 'The rootfs was removed and was never started.\n'
