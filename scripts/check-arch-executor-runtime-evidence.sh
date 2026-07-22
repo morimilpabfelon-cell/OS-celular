@@ -26,6 +26,10 @@ for path in \
     "$EVIDENCE_DIR/rebuild-network-interfaces.txt" \
     "$EVIDENCE_DIR/generation-1-rootfs-source.env" \
     "$EVIDENCE_DIR/generation-2-rootfs-source.env" \
+    "$EVIDENCE_DIR/generation-1-uid-shift.txt" \
+    "$EVIDENCE_DIR/generation-2-uid-shift.txt" \
+    "$EVIDENCE_DIR/ownership-shift-generation-1.log" \
+    "$EVIDENCE_DIR/ownership-shift-generation-2.log" \
     "$EVIDENCE_DIR/cleanup-status.env"
 do
     [ -f "$path" ] || fail "required runtime evidence is missing: $path"
@@ -67,28 +71,40 @@ case "$FAILURE_EXIT" in
 esac
 [ "$FAILURE_EXIT" -ne 0 ] || fail 'forced failure must produce a non-zero nspawn exit'
 
-for generation in clean rebuild; do
-    proof=$EVIDENCE_DIR/$generation-proof.env
-    [ "$(get_value "$proof" pid1_comm)" = systemd ] || fail "$generation boot did not use systemd as PID 1"
-    [ "$(get_value "$proof" network_interfaces)" = lo ] || fail "$generation boot exposed a non-loopback interface"
+for label in clean rebuild; do
+    case "$label" in
+        clean) generation=1 ;;
+        rebuild) generation=2 ;;
+    esac
 
-    interfaces=$(tr -d '\r\n' < "$EVIDENCE_DIR/$generation-network-interfaces.txt")
-    [ "$interfaces" = lo ] || fail "$generation runtime interface evidence must contain only lo"
+    proof=$EVIDENCE_DIR/$label-proof.env
+    [ "$(get_value "$proof" pid1_comm)" = systemd ] || fail "$label boot did not use systemd as PID 1"
+    [ "$(get_value "$proof" network_interfaces)" = lo ] || fail "$label boot exposed a non-loopback interface"
 
-    root_options=$(tr -d '\r\n' < "$EVIDENCE_DIR/$generation-root-options.txt")
+    interfaces=$(tr -d '\r\n' < "$EVIDENCE_DIR/$label-network-interfaces.txt")
+    [ "$interfaces" = lo ] || fail "$label runtime interface evidence must contain only lo"
+
+    root_options=$(tr -d '\r\n' < "$EVIDENCE_DIR/$label-root-options.txt")
     case ",$root_options," in
         *,ro,*) ;;
-        *) fail "$generation root mount is not read-only" ;;
+        *) fail "$label root mount is not read-only" ;;
     esac
 
-    var_fstype=$(tr -d '\r\n' < "$EVIDENCE_DIR/$generation-var-fstype.txt")
-    [ "$var_fstype" = tmpfs ] || fail "$generation /var is not volatile tmpfs"
+    var_fstype=$(tr -d '\r\n' < "$EVIDENCE_DIR/$label-var-fstype.txt")
+    [ "$var_fstype" = tmpfs ] || fail "$label /var is not volatile tmpfs"
 
-    host_uid_start=$(awk 'NR == 1 { print $2 }' "$EVIDENCE_DIR/$generation-uid-map.txt")
+    host_uid_start=$(awk 'NR == 1 { print $2 }' "$EVIDENCE_DIR/$label-uid-map.txt")
     case "$host_uid_start" in
-        *[!0-9]*|'') fail "$generation UID map is invalid" ;;
+        *[!0-9]*|'') fail "$label UID map is invalid" ;;
     esac
-    [ "$host_uid_start" -ne 0 ] || fail "$generation container root maps to host root"
+
+    prepared_shift=$(tr -d '\r\n' < "$EVIDENCE_DIR/generation-$generation-uid-shift.txt")
+    case "$prepared_shift" in
+        *[!0-9]*|'') fail "generation $generation prepared UID shift is invalid" ;;
+    esac
+    [ "$prepared_shift" -ge 65536 ] || fail "generation $generation prepared UID shift is unexpectedly small"
+    [ $((prepared_shift % 65536)) -eq 0 ] || fail "generation $generation prepared UID shift is not aligned to 65536"
+    [ "$host_uid_start" = "$prepared_shift" ] || fail "$label UID map does not match the prepared ownership shift"
 done
 
 [ "$(get_value "$EVIDENCE_DIR/clean-proof.env" generation)" = 1 ] || fail 'clean proof generation mismatch'
