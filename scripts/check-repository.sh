@@ -20,6 +20,7 @@ esac
 
 for path in \
     .github/workflows/validate.yml \
+    .github/workflows/validate-arch-executor-resource-limits.yml \
     README.md \
     CONTRIBUTING.md \
     config/arch-executor-resource-limits.env \
