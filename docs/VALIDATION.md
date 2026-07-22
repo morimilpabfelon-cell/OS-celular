@@ -2,33 +2,30 @@
 
 ## Propósito
 
-Este documento separa pruebas estáticas, contratos simulados y ejecución real. Ninguna prueba debe presentarse como más fuerte de lo que demuestra.
+Este documento separa pruebas estáticas, contratos simulados y ejecución real. Ningún resultado debe presentarse como más fuerte de lo que demuestra.
 
 ## Matriz de estado
 
-| Capacidad | Estado | Evidencia exigida |
+| Capacidad | Estado | Evidencia |
 |---|---|---|
 | Estructura del repositorio | Automatizada | workflow `Repository validation` |
-| Sintaxis POSIX | Automatizada | `sh -n` |
-| Sintaxis Python | Automatizada | `compile()` sin generar bytecode |
-| Análisis de shell | Automatizado | ShellCheck |
-| Contratos del constructor y QEMU | Automatizados con mocks | `tests/shell/*.sh` |
-| Manifiesto del árbol ext4 | Automatizado con prueba unitaria | `tests/python/*.py` |
-| Fuentes APT del invitado fijadas | Automatizada | archivo deb822 y SHA-256 |
-| Construcción Debian ARM64 real | Validada | `build.log`, checksum y metadata |
-| Arranque UEFI real | Validado | `boot.log` |
-| Kernel y systemd | Validados | consola serie |
-| `multi-user.target` activo | Validado | marca `MORIMIL_BOOT_PROOF` |
-| Apagado controlado | Validado | salida 0 de QEMU |
-| Identificadores GPT deterministas | Validado | manifiesto `.identifiers` |
-| Localización regional de entropía | Validada | `image-regions.txt` |
-| Reproducibilidad bit a bit | Validada | ejecuciones `29714518572` y `29715172215` |
-| Autoridad Arch local fijada | Validada | huella completa y SHA-256 de `signing-key.asc` |
-| Rootfs Arch AArch64 fijado | Validado | firma, SHA-256, SHA-512, tamaño y lista |
+| Sintaxis POSIX y Python | Automatizada | `sh -n` y `compile()` |
+| ShellCheck | Automatizado | scripts y contratos shell |
+| Construcción Debian ARM64 | Validada | ejecuciones reales y artefactos |
+| Arranque UEFI, kernel y systemd | Validado | consola serie y `boot.log` |
+| `multi-user.target` Debian | Validado | `MORIMIL_BOOT_PROOF` |
+| Reproducibilidad Debian bit a bit | Validada | ejecuciones `29714518572` y `29715172215` |
+| Autoridad Arch local | Validada | huella completa y SHA-256 |
+| Rootfs Arch AArch64 fijado | Validado | firma, hashes, tamaño y lista |
 | Bootstrap Arch real | Validado | ejecución `29880817129` |
-| `pacman` ELF AArch64 | Validado | `file` y `readelf -h` |
-| Eliminación del rootfs de prueba | Validada | `cleanup-status.txt` |
-| Arranque `systemd-nspawn` | No iniciado | log y estado del contenedor |
+| Runtime `systemd-nspawn` | Validado | ejecución `29888136765` |
+| UID y red privados | Validados | mapas UID/GID y namespaces |
+| Raíz `ro` y `/var` volátil | Validados | `findmnt` dentro del executor |
+| Parada limpia | Validada | salida 0 de `systemd-nspawn` |
+| Fallo forzado sin afectar Debian | Validado | host antes/después |
+| Destrucción y reconstrucción | Validadas | dos generaciones del mismo pin |
+| Ciclo operacional | En validación | job ARM64 de Fase 2E |
+| Límites de recursos | Pendientes | CPU, memoria y almacenamiento |
 | Soporte de teléfono físico | No iniciado | matriz por componente |
 
 ## Pruebas estáticas
@@ -43,145 +40,51 @@ Comprueban:
 - sintaxis POSIX;
 - sintaxis Python;
 - ShellCheck cuando está disponible;
+- contratos shell y pruebas Python;
 - ausencia de imágenes y evidencia generada rastreada por Git;
 - whitespace y parche del commit.
 
-El workflow ejecuta además:
-
-```sh
-python3 -m unittest discover -s tests/python -p 'test_*.py' -v
-```
-
-## Pruebas contractuales
+El workflow ejecuta:
 
 ```sh
 for test_script in tests/shell/*.sh; do
     sh "$test_script"
 done
+python3 -m unittest discover -s tests/python -p 'test_*.py' -v
 ```
 
-Usan ejecutables simulados o raíces temporales para verificar:
+Las pruebas estáticas no descargan rootfs ni prueban un kernel o contenedor real.
 
-- opciones EFI, ARM64, snapshot y script de personalización;
-- transporte HTTP hacia Debian Snapshot con verificación de Release firmada;
-- permisos `0755` del directorio temporal;
-- checksum y metadata;
-- rechazo de sobrescritura accidental;
-- aislamiento de QEMU y red desactivada;
-- validación de recursos y firmware;
-- normalización determinista de identificadores GPT;
-- huellas separadas de regiones de la imagen;
-- sustitución determinista de `/etc/resolv.conf` heredado;
-- instalación segura de la instrumentación de arranque;
-- aceptación y rechazo correctos del verificador de logs;
-- creación del dispositivo loop ext4 en modo de solo lectura;
-- montaje ext4 con `ro,noload,nodev,nosuid,noexec`;
-- detección de cualquier mutación de la imagen durante la inspección;
-- rechazo de una clave Arch ausente, mutada o con huella incorrecta;
-- rechazo de firma, SHA-256, SHA-512, tamaño o lista Arch distintos;
-- rollback del bootstrap sin publicación parcial.
+## Construcción Debian ARM64
 
-Las pruebas contractuales no descargan paquetes ni prueban un kernel o un contenedor real.
+La imagen usa Debian Snapshot y entradas fijadas. La ejecución real exige:
 
-## Control de fuentes APT
+- UEFI;
+- kernel ARM64;
+- systemd como PID 1;
+- `multi-user.target` activo;
+- apagado controlado;
+- inspección ext4 de solo lectura;
+- checksums antes y después de inspección.
 
-La ejecución real entrega a autopkgtest dos fuentes deb822 fijadas al mismo timestamp solicitado:
-
-- archivo principal `debian`;
-- archivo de seguridad `debian-security`.
-
-No se permite que `setup-testbed` introduzca `security.debian.org` ni otro repositorio vivo. La configuración usa `Check-Valid-Until: no` porque Debian Snapshot es un archivo histórico, pero mantiene `Signed-By` con el keyring oficial.
-
-La evidencia incluye el contenido exacto y su SHA-256:
-
-```text
-build/guest-apt-sources.sources
-build/guest-apt-sources.sha256
-```
-
-## Prueba real de arranque Debian
-
-La imagen de validación instala un timer de systemd. Cuando se activa, un servicio comprueba:
-
-```sh
-systemctl is-active --quiet multi-user.target
-```
-
-Solo después imprime en `/dev/console`:
-
-```text
-MORIMIL_BOOT_PROOF target=multi-user.target state=active
-```
-
-El verificador exige esa marca exacta y rechaza tanto su ausencia como `MORIMIL_BOOT_PROOF_FAILED`.
-
-## Diagnóstico regional de la imagen Debian
-
-`scripts/fingerprint-qemu-image.sh` lee la tabla mediante `sfdisk --dump` y calcula SHA-256 independientes de:
-
-- subregiones del MBR;
-- GPT primaria;
-- partición EFI;
-- espacio entre particiones;
-- partición ext4 raíz;
-- GPT de respaldo;
-- imagen raw completa.
-
-Las primeras comparaciones demostraron que MBR, GPT, EFI y espacios externos a la raíz eran idénticos. La inspección del árbol ext4 redujo la única diferencia a `/etc/resolv.conf`, copiado por `mmdebstrap` desde el contenedor anfitrión. `scripts/configure-validation-image.sh` sustituye ahora cualquier archivo o enlace heredado por un archivo regular `0644` con contenido exacto y estable.
-
-## Inspección ext4 de solo lectura
-
-`scripts/inspect-ext4-root.sh` limita un dispositivo loop exactamente al desplazamiento y tamaño de la segunda partición mediante `--offset` y `--sizelimit`. Exige que el loop reporte `RO=1` y monta con:
-
-```text
-ro,noload,nodev,nosuid,noexec
-```
-
-La inspección conserva:
-
-- cabecera del superblock mediante `dumpe2fs -h`;
-- distribución de grupos mediante `dumpe2fs -g`;
-- manifiesto JSON Lines del árbol;
-- checksum del manifiesto;
-- entorno de herramientas;
-- SHA-256 de la imagen antes y después.
-
-El manifiesto registra de forma ordenada rutas, tipos, modos, propietarios, tamaños, inodos, enlaces, bloques, tiempos, xattrs, destinos de enlaces y SHA-256 del contenido regular. Los nombres de ruta y xattr también se conservan en Base64 para no perder bytes no UTF-8.
-
-El inspector falla si la imagen cambia durante el proceso. Esta inspección identifica diferencias; no normaliza ni reescribe ext4.
-
-## Reproducibilidad Debian validada
-
-Solo se comparan construcciones cuando coinciden:
-
-- commit de construcción;
-- snapshot solicitado;
-- `SOURCE_DATE_EPOCH`;
-- digest del contenedor;
-- versiones de herramientas;
-- fuentes APT y su SHA-256;
-- script de personalización y su SHA-256;
-- tamaño y opciones de imagen;
-- identificadores GPT derivados.
-
-Las ejecuciones independientes `29714518572` y `29715172215`, ambas sobre el commit de construcción `50d40bc11f88b3e9c93ac7ed8ac1eac23a2fe221`, produjeron imágenes raw con el mismo SHA-256 completo:
+Las ejecuciones independientes `29714518572` y `29715172215` produjeron el mismo SHA-256 raw:
 
 ```text
 1da5031ee0d1b322e30b7c08148856706fb3572f5c3fd15cdc86fd79d4c27983
 ```
 
-También coincidieron exactamente `image-regions.txt`, los identificadores GPT, la metadata del constructor, el superblock ext4, los descriptores de grupos y el manifiesto de `27157` entradas:
+También coincidieron:
 
 ```text
 root_partition_sha256=04146ee6bd1abdc44805e58186bf964708991b7731d35ab8fa521b07202d9b82
 tree_manifest_sha256=a50b78d883fb05cb93b4b9740402b5c9c22fc01598eb885566ba87ba45dca886
 ```
 
-Los ZIP de evidencia no tienen que ser idénticos porque contienen logs y envoltorios específicos de cada ejecución. La afirmación de reproducibilidad se limita a la imagen raw y a las entradas fijadas descritas aquí; no implica reproducibilidad automática después de cambiar esas entradas.
+La afirmación de reproducibilidad se limita a la imagen raw y a las entradas fijadas; no cubre cambios posteriores de herramientas o fuentes.
 
-## Descubrimiento autenticado del rootfs Arch
+## Rootfs Arch autenticado
 
-La ejecución `29880034099` descargó el rootfs y la firma como usuario sin privilegios, importó la autoridad mediante HKPS y comprobó:
+El artefacto fijado contiene:
 
 ```text
 fingerprint=68B3537F39A313B3E574D06777193F152BDBE6A6
@@ -193,63 +96,99 @@ archive_entries=48789
 archive_list_sha256=09534cd0ae6c2c808a2cb2586de692dce92a0e3c20072bdf0af062d846a42f7d
 ```
 
-La clave exportada fue inspeccionada nuevamente mediante `gpg --show-keys` antes de versionarse.
+El bootstrap verifica:
 
-## Bootstrap real del rootfs Arch
+1. SHA-256 de la clave local;
+2. huella primaria completa;
+3. firma con `gpgv`;
+4. SHA-256 y SHA-512 del tarball;
+5. tamaño exacto;
+6. lista y número de entradas;
+7. rutas seguras;
+8. identidad Arch Linux ARM;
+9. `pacman` ELF64 AArch64;
+10. publicación atómica y rollback.
 
-La ejecución independiente `29880817129`, sobre el commit `864cd5b97869b6da924b17f71dce564140eb24fe`, utilizó exclusivamente la clave local fijada. No utilizó keyserver, `dirmngr` ni `gpg-agent`.
+La ejecución `29880817129` extrajo `48792` entradas y `2098553789` bytes, y eliminó rootfs y estado al finalizar. No ejecutó `pacman`.
 
-El trabajo completó:
+## Runtime Arch aislado
 
-1. descarga de rootfs y firma;
-2. comprobación del SHA-256 de la clave local;
-3. comprobación de la huella primaria;
-4. verificación de firma mediante `gpgv`;
-5. coincidencia de SHA-256, SHA-512, tamaño y estructura;
-6. extracción con propietarios, ACL y xattrs;
-7. publicación atómica;
-8. inspección de identidad y arquitectura;
-9. metadata interna y externa;
-10. eliminación de rootfs y estado.
+La ejecución ARM64 nativa `29888136765` validó el head `45ea2efeb847501840fe169c1f5703d253e97ec1`.
 
-Resultados observados:
+Demostró:
+
+- dos bootstraps independientes del mismo rootfs fijado;
+- dos arranques con systemd como PID 1;
+- `morimil-executor.target` activo;
+- `PrivateUsers=pick` y propietarios desplazados;
+- namespace de red diferente al host;
+- única interfaz `lo`;
+- raíz de solo lectura;
+- `/var` en `tmpfs`;
+- `NoNewPrivileges=1`;
+- rechazo de escritura sobre `/`;
+- parada limpia;
+- fallo forzado de PID 1 con salida no nula;
+- continuidad del boot ID, red y archivo centinela de Debian;
+- reconstrucción desde el mismo SHA-256;
+- eliminación final de rootfs, estado, registro y política temporal.
+
+El artefacto de evidencia tuvo digest:
 
 ```text
-rootfs_filesystem_entries=48792
-rootfs_extracted_bytes=2098553789
-pacman_elf_class=ELF64
-pacman_elf_machine=AArch64
-rootfs_removed=yes
-state_removed=yes
-MORIMIL_ARCH_ROOTFS_BOOTSTRAP_VALIDATED=yes
+sha256:dde5245fde37efdde46efa67cc3bcfec94dd4f54c310c4cf9ddd27887da6a347
 ```
 
-La ejecución no inició `systemd-nspawn` ni ejecutó `pacman`.
+## Ciclo de vida operacional
+
+La Fase 2E separa operaciones que antes estaban unidas en una prueba destructiva:
+
+```text
+create
+start
+status
+stop
+destroy
+rebuild
+```
+
+La validación AArch64 deberá conservar evidencia de:
+
+- `create` sin arranque implícito;
+- dos arranques mediante la interfaz operacional;
+- estado `absent`, `stopped` y `running`;
+- parada que conserva el rootfs;
+- `/var` no persistente;
+- reconstrucción con el mismo SHA-256;
+- destrucción completa;
+- host sin cambios.
+
+Los contratos se validan con:
+
+```sh
+sh tests/shell/test-arch-executor-lifecycle.sh
+sh tests/shell/test-arch-executor-lifecycle-evidence.sh
+```
+
+La evidencia real se comprueba mediante:
+
+```sh
+sh scripts/check-arch-executor-lifecycle-evidence.sh build/arch-executor-lifecycle/evidence
+```
 
 ## Evidencia conservada
 
-La validación Debian conserva logs, metadata, fuentes, manifiestos y checksums bajo `build/`; la imagen raw no se sube.
+Los artefactos de CI conservan únicamente logs, estados, metadata, mapas de namespaces, opciones de montaje y checksums.
 
-La validación Arch conserva:
+No se conservan:
 
-```text
-bootstrap.log
-cleanup-status.txt
-environment.txt
-os-release
-pacman-elf-header.txt
-pacman-file.txt
-pin.env
-rootfs-inspection.txt
-rootfs-source.env
-signing-key.asc
-validation-status.txt
-```
-
-El tarball Arch, su firma descargada y el rootfs extraído no se conservan en Git ni en los artefactos de CI.
+- imagen raw Debian;
+- tarball Arch;
+- firma descargada;
+- rootfs Arch extraído.
 
 ## Límites
 
-QEMU `virt` no representa un teléfono. Incluso una ejecución completamente verde no demuestra pantalla táctil, batería, suspensión móvil, módem, cámara, sensores, GPU ni consumo energético.
+QEMU `virt` y `systemd-nspawn` no representan un teléfono. Las validaciones actuales no demuestran pantalla táctil, batería, suspensión móvil, módem, cámara, sensores, GPU, audio, consumo energético ni compatibilidad de firmware.
 
-La validación Arch demuestra adquisición, autenticidad, extracción, arquitectura, publicación y limpieza. No demuestra arranque de systemd dentro de `systemd-nspawn`, límites de recursos, aislamiento efectivo en ejecución ni recuperación ante un contenedor activo defectuoso.
+Tampoco demuestran todavía límites definitivos de CPU, memoria, almacenamiento o una lista permitida de montajes de datos.
