@@ -25,6 +25,7 @@ STATUS_FILE=${ARCH_EXECUTOR_CI_STATUS_FILE:-$ROOT_DIR/arch-executor-runtime-stat
 BOOT_TIMEOUT=${ARCH_EXECUTOR_BOOT_TIMEOUT:-240}
 NSPAWN_PID=
 CURRENT_LOG=
+CURRENT_GENERATION=
 FORCED_FAILURE_EXIT=
 
 fail() {
@@ -45,7 +46,7 @@ esac
 
 for command_name in \
     awk cat chmod cmp cp find findmnt grep id kill ln machinectl mkdir \
-    readlink rm sed sha256sum sleep sort systemctl systemd-nspawn systemd-run tail tr uname
+    readlink rm sed sha256sum sleep sort stat systemctl systemd-nspawn systemd-run tail tr uname
 do
     command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
 done
@@ -129,6 +130,8 @@ EOF_HOST_BEFORE
 bootstrap_generation() {
     generation=$1
     log=$EVIDENCE_DIR/bootstrap-generation-$generation.log
+    shift_log=$EVIDENCE_DIR/ownership-shift-generation-$generation.log
+    shift_file=$EVIDENCE_DIR/generation-$generation-uid-shift.txt
 
     ARCH_ROOTFS_PIN_FILE=$PIN_FILE \
     ARCH_ROOTFS_KEY_FILE=$KEY_FILE \
@@ -190,6 +193,28 @@ EOF_PROOF_UNIT
 
     rm -f "$DESTINATION/etc/machine-id"
     : > "$DESTINATION/etc/machine-id"
+
+    systemd-nspawn \
+        --quiet \
+        --machine="$MACHINE-prepare-$generation" \
+        --directory="$DESTINATION" \
+        --settings=no \
+        --register=no \
+        --private-network \
+        --private-users=pick \
+        --private-users-ownership=chown \
+        --link-journal=no \
+        --resolv-conf=off \
+        --timezone=off \
+        /usr/bin/true \
+        > "$shift_log" 2>&1
+
+    uid_shift=$(stat -c '%u' "$DESTINATION")
+    case "$uid_shift" in *[!0-9]*|'') fail "generation $generation UID shift is invalid" ;; esac
+    [ "$uid_shift" -ge 65536 ] || fail "generation $generation UID shift is unexpectedly small"
+    [ $((uid_shift % 65536)) -eq 0 ] || fail "generation $generation UID shift is not aligned to 65536"
+    printf '%s\n' "$uid_shift" > "$shift_file"
+    CURRENT_GENERATION=$generation
 }
 
 run_in_machine() {
@@ -222,6 +247,7 @@ wait_for_boot() {
 start_machine() {
     label=$1
     [ -z "$NSPAWN_PID" ] || fail 'an nspawn process is already tracked'
+    [ -n "$CURRENT_GENERATION" ] || fail 'no prepared rootfs generation is selected'
     ! machine_exists || fail 'machine is already registered before start'
 
     CURRENT_LOG=$EVIDENCE_DIR/nspawn-$label.log
@@ -288,7 +314,8 @@ capture_runtime() {
 
     host_uid_start=$(awk 'NR == 1 { print $2 }' "$uid_map_file")
     case "$host_uid_start" in *[!0-9]*|'') fail "$label UID map is invalid" ;; esac
-    [ "$host_uid_start" -ne 0 ] || fail "$label container root maps to host root"
+    expected_uid_shift=$(tr -d '\r\n' < "$EVIDENCE_DIR/generation-$CURRENT_GENERATION-uid-shift.txt")
+    [ "$host_uid_start" = "$expected_uid_shift" ] || fail "$label UID map does not match the prepared rootfs ownership shift"
 
     find /sys/class/net -mindepth 1 -maxdepth 1 -printf '%f\n' | sort > "$EVIDENCE_DIR/host-network-during-$label.txt"
     during_network_sha=$(sha256sum "$EVIDENCE_DIR/host-network-during-$label.txt" | awk '{ print $1 }')
