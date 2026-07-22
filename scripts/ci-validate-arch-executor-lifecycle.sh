@@ -10,6 +10,7 @@ esac
 
 ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build/arch-executor-lifecycle}
+BUILD_PARENT=${BUILD_DIR%/*}
 EVIDENCE_DIR=$BUILD_DIR/evidence
 MACHINE_ROOT=$BUILD_DIR/machines
 STATE_ROOT=$BUILD_DIR/state
@@ -38,7 +39,7 @@ for command_name in awk cat chmod cp find findmnt grep id machinectl mkdir nsent
 done
 
 mkdir -p "$EVIDENCE_DIR" /run/systemd/nspawn
-chmod 0755 "$BUILD_DIR" "$EVIDENCE_DIR" /run/systemd/nspawn
+chmod 0755 "$BUILD_PARENT" "$BUILD_DIR" "$EVIDENCE_DIR" /run/systemd/nspawn
 
 export ARCH_EXECUTOR_MACHINE="$MACHINE"
 export ARCH_EXECUTOR_MACHINE_ROOT="$MACHINE_ROOT"
