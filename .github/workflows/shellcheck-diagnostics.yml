@@ -1,0 +1,56 @@
+name: ShellCheck diagnostics
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shellcheck-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends shellcheck
+
+      - name: Capture script diagnostics
+        id: shellcheck
+        continue-on-error: true
+        run: |
+          set +e
+          shellcheck -f gcc -s sh scripts/*.sh > shellcheck-scripts.log 2>&1
+          status=$?
+          cat shellcheck-scripts.log
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shellcheck-diagnostics-${{ github.run_id }}
+          path: shellcheck-scripts.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce result
+        if: steps.shellcheck.outputs.status != '0'
+        run: exit 1
