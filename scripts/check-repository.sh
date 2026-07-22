@@ -45,6 +45,7 @@ for path in \
     scripts/ci-bootstrap-arch-rootfs.sh \
     scripts/ci-build-arm64.sh \
     scripts/ci-inspect-ext4.sh \
+    scripts/ci-runtime-command-wrapper.sh \
     scripts/ci-validate-arch-executor-runtime.sh \
     scripts/configure-validation-image.sh \
     scripts/fingerprint-qemu-image.sh \
