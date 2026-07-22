@@ -137,13 +137,21 @@ run_bootstrap() {
     destination=$1
     state_dir=$2
     shift 2
-    env_file=$TMP_DIR/env.$$
-    common_env "$destination" "$state_dir" > "$env_file"
-    set -- "$@"
+    common_file=$TMP_DIR/common.$$
+    extra_file=$TMP_DIR/extra.$$
+    common_env "$destination" "$state_dir" > "$common_file"
+    : > "$extra_file"
+    for assignment in "$@"; do
+        printf '%s\n' "$assignment" >> "$extra_file"
+    done
+    set --
     while IFS= read -r assignment; do
         set -- "$@" "$assignment"
-    done < "$env_file"
-    rm -f "$env_file"
+    done < "$common_file"
+    while IFS= read -r assignment; do
+        set -- "$@" "$assignment"
+    done < "$extra_file"
+    rm -f "$common_file" "$extra_file"
     PATH=$MOCK_BIN:$PATH env "$@" sh "$BOOTSTRAP"
 }
 
