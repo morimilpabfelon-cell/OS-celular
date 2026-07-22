@@ -276,3 +276,69 @@ jobs:
           path: build/arch-rootfs-bootstrap/evidence/
           if-no-files-found: warn
           retention-days: 7
+
+  arch-executor-runtime:
+    name: Boot isolated Arch executor on native ARM64
+    needs: static
+    if: >-
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.body, '<!-- run-arch-executor-runtime -->')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          show-progress: false
+
+      - name: Install native runtime validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            binutils \
+            ca-certificates \
+            curl \
+            file \
+            gnupg \
+            gpgv \
+            libarchive-tools \
+            systemd-container \
+            util-linux
+
+      - name: Bootstrap, boot, fail, rebuild, and remove executor
+        run: |
+          sudo env \
+            BUILD_DIR="$GITHUB_WORKSPACE/build/arch-executor-runtime" \
+            ARCH_ROOTFS_PIN_FILE="$GITHUB_WORKSPACE/config/arch-rootfs-release.env" \
+            ARCH_ROOTFS_KEY_FILE="$GITHUB_WORKSPACE/config/keys/archlinuxarm-build-system.asc" \
+            ARCH_EXECUTOR_POLICY_FILE="$GITHUB_WORKSPACE/config/nspawn/morimil-arch.nspawn" \
+            sh scripts/ci-validate-arch-executor-runtime.sh
+
+      - name: Prepare runtime evidence permissions
+        if: always()
+        run: |
+          set -eu
+          evidence=build/arch-executor-runtime/evidence
+          if [ -d "$evidence" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$evidence"
+            chmod 0755 "$evidence"
+            find "$evidence" -maxdepth 1 -type f -exec chmod 0644 {} +
+          fi
+          if [ -f arch-executor-runtime-status.txt ]; then
+            sudo chown "$(id -u):$(id -g)" arch-executor-runtime-status.txt
+            chmod 0644 arch-executor-runtime-status.txt
+          fi
+
+      - name: Upload Arch executor runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morimil-arch-executor-runtime-${{ github.run_id }}
+          path: |
+            build/arch-executor-runtime/evidence/
+            arch-executor-runtime-status.txt
+          if-no-files-found: warn
+          retention-days: 7
