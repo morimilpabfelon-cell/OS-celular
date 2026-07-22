@@ -26,7 +26,7 @@ COMMAND_LOG=$TMP_DIR/commands.log
 
 version_output=$(
     ARCH_EXECUTOR_COMMAND_LOG=$COMMAND_LOG \
-        "$TMP_DIR/systemctl" --version
+        sh "$TMP_DIR/systemctl" --version
 )
 printf '%s\n' "$version_output" | grep -Eq '^systemd [0-9]+' || fail 'systemctl version output was not preserved'
 if printf '%s\n' "$version_output" | grep -Eq '^[0-9]+$'; then
@@ -36,7 +36,7 @@ grep -Fq 'event=finish command=systemctl status=0' "$COMMAND_LOG" || fail 'succe
 
 set +e
 ARCH_EXECUTOR_COMMAND_LOG=$COMMAND_LOG \
-    "$TMP_DIR/systemctl" is-active morimil-wrapper-contract-missing.service \
+    sh "$TMP_DIR/systemctl" is-active morimil-wrapper-contract-missing.service \
     > "$TMP_DIR/inactive.stdout" \
     2> "$TMP_DIR/inactive.stderr"
 inactive_status=$?
