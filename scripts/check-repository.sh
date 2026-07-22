@@ -69,7 +69,8 @@ for path in \
     tests/shell/test-ext4-inspection.sh \
     tests/shell/test-image-configuration.sh \
     tests/shell/test-image-fingerprints.sh \
-    tests/shell/test-image-normalization.sh
+    tests/shell/test-image-normalization.sh \
+    tests/shell/test-runtime-command-wrapper.sh
 do
     if [ ! -f "$path" ]; then
         printf 'error: required file is missing: %s\n' "$path" >&2
