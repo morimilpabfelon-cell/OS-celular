@@ -25,7 +25,9 @@ Este documento separa pruebas estáticas, contratos simulados y ejecución real.
 | Fallo forzado sin afectar Debian | Validado | host antes/después |
 | Destrucción y reconstrucción | Validadas | dos generaciones del mismo pin |
 | Ciclo operacional | Validado | ejecución `29890214148` |
-| Límites de recursos | Pendientes | CPU, memoria y almacenamiento |
+| Perfil de límites declarativo | Automatizado | contratos de Fase 2F |
+| Límites cgroup y `/var` | En validación | job AArch64 de Fase 2F |
+| Lista permitida de montajes | Pendiente | contrato explícito sin bind libre |
 | Soporte de teléfono físico | No iniciado | matriz por componente |
 
 ## Pruebas estáticas
@@ -53,7 +55,7 @@ done
 python3 -m unittest discover -s tests/python -p 'test_*.py' -v
 ```
 
-Las pruebas estáticas no descargan rootfs ni prueban un kernel o contenedor real.
+Las pruebas estáticas no descargan rootfs ni prueban un kernel, contenedor o cgroup real.
 
 ## Construcción Debian ARM64
 
@@ -177,22 +179,74 @@ El artefacto contiene 44 archivos y tuvo digest:
 sha256:69123abf328f4778e77db3f0dfd368b0a9dec7b3e5f711c8afc966b3474955d5
 ```
 
-Los contratos se validan con:
+## Límites de recursos
 
-```sh
-sh tests/shell/test-arch-executor-lifecycle.sh
-sh tests/shell/test-arch-executor-lifecycle-evidence.sh
+El perfil canónico de Fase 2F es:
+
+```text
+CPUQuota=100%
+MemoryHigh=536870912
+MemoryMax=805306368
+MemorySwapMax=0
+TasksMax=256
+var_size_bytes=268435456
+var_inodes=65536
 ```
 
-La evidencia real se comprueba mediante:
+Los contratos estáticos verifican:
+
+- claves exactas y valores numéricos;
+- relación `MemoryHigh <= MemoryMax`;
+- swap desactivada;
+- rangos máximos y mínimos;
+- correspondencia exacta entre el archivo declarativo y `TemporaryFileSystem=/var`;
+- presencia de `--keep-unit`, `Delegate=yes` y propiedades de cgroup;
+- rechazo de evidencia alterada.
+
+La ejecución AArch64 debe conservar:
+
+```text
+cpu.max
+memory.high
+memory.max
+memory.swap.max
+pids.max
+cgroup-paths.env
+var-fstype.txt
+var-options.txt
+var-size-bytes.txt
+var-inodes.txt
+var-overflow-test.env
+```
+
+La prueba solo se considera válida cuando:
+
+1. el host usa cgroup v2;
+2. el PID 1 de Arch está en el cgroup de la unidad limitada o un descendiente;
+3. `cpu.max` representa el porcentaje declarado;
+4. memoria, swap y tareas coinciden exactamente;
+5. `/var` es `tmpfs` con tamaño e inodos exactos;
+6. una reserva superior al límite de `/var` es rechazada;
+7. rootfs, estado, política y perfil instalado son eliminados;
+8. Debian conserva boot ID, red y archivo centinela.
+
+Contratos:
 
 ```sh
-sh scripts/check-arch-executor-lifecycle-evidence.sh build/arch-executor-lifecycle/evidence
+sh tests/shell/test-arch-executor-resource-limits.sh
+sh tests/shell/test-arch-executor-resource-limits-evidence.sh
+```
+
+Validación de evidencia:
+
+```sh
+sh scripts/check-arch-executor-resource-limits-evidence.sh \
+  build/arch-executor-resource-limits/evidence
 ```
 
 ## Evidencia conservada
 
-Los artefactos de CI conservan únicamente logs, estados, metadata, mapas de namespaces, opciones de montaje y checksums.
+Los artefactos de CI conservan únicamente logs, estados, metadata, mapas de namespaces, archivos cgroup, opciones de montaje y checksums.
 
 No se conservan:
 
@@ -205,4 +259,4 @@ No se conservan:
 
 QEMU `virt` y `systemd-nspawn` no representan un teléfono. Las validaciones actuales no demuestran pantalla táctil, batería, suspensión móvil, módem, cámara, sensores, GPU, audio, consumo energético ni compatibilidad de firmware.
 
-Tampoco demuestran todavía límites definitivos de CPU, memoria, almacenamiento o una lista permitida de montajes de datos.
+La Fase 2F tampoco autoriza bind mounts ni datos persistentes. La lista permitida de montajes se definirá en un bloque separado antes de iniciar Morimil Core.
