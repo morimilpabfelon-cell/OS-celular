@@ -6,21 +6,20 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 2E: ciclo de vida operacional del Arch Executor en validación.**
+**Fase 2E: ciclo de vida operacional del Arch Executor completado.**
 
 La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen.
 
-Las Fases 2A–2D ya validaron:
+Las Fases 2A–2E ya validaron:
 
 - política `systemd-nspawn` restrictiva;
 - autoridad y rootfs Arch Linux ARM AArch64 fijados;
 - bootstrap autenticado y publicación atómica;
-- dos arranques reales con systemd como PID 1;
+- arranques reales con systemd como PID 1;
 - UID y red privados;
 - raíz de solo lectura y estado volátil;
-- parada limpia, fallo forzado y reconstrucción sin afectar Debian.
-
-La Fase 2E convierte esa prueba destructiva en operaciones delimitadas: `create`, `start`, `status`, `stop`, `destroy` y `rebuild`.
+- parada limpia, fallo forzado y reconstrucción sin afectar Debian;
+- operaciones delimitadas `create`, `start`, `status`, `stop`, `destroy` y `rebuild`.
 
 ## Alcance
 
@@ -49,7 +48,7 @@ La Fase 2E convierte esa prueba destructiva en operaciones delimitadas: `create`
 
 ## Objetivo verificable actual
 
-Validar en AArch64 nativo que la interfaz operacional puede crear, iniciar, consultar, detener, reconstruir y destruir el executor sin variar el rootfs fijado ni alterar Debian.
+Cerrar la Fase 2 con límites explícitos de CPU, memoria y almacenamiento, además de una lista permitida para futuros montajes de datos. Después comienza Morimil Core.
 
 La validación en QEMU o `systemd-nspawn` no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
