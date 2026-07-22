@@ -95,9 +95,9 @@ Evidencia principal: ejecución AArch64 `29890214148` y artefacto `morimil-arch-
 
 ### Fase 2F — Límites de recursos
 
-**Estado:** en validación.
+**Estado:** completada.
 
-Perfil inicial:
+Perfil validado:
 
 - `CPUQuota=100%`;
 - `MemoryHigh=536870912` bytes;
@@ -106,9 +106,11 @@ Perfil inicial:
 - `TasksMax=256`;
 - `/var` en `tmpfs` de `268435456` bytes y `65536` inodos;
 - PID 1 de Arch contenido en el cgroup de la unidad limitada;
-- configuración instalada idéntica a la versión del repositorio.
+- configuración instalada idéntica a la versión del repositorio;
+- reserva superior al límite de `/var` rechazada;
+- Debian sin cambios y limpieza completa.
 
-La validación AArch64 debe comprobar los archivos cgroup del kernel, el tamaño e inodos de `/var`, el rechazo de una reserva superior al límite y la continuidad de Debian.
+Evidencia principal: ejecución AArch64 `29892193434` y artefacto `morimil-arch-executor-resource-limits-29892193434`, digest `sha256:e51a51f81225dbf7e5fe1bc500cc358abf29bd7ea8e56cb3fe26905c63f2b086`.
 
 ### Pendiente para cerrar Fase 2
 
