@@ -2,9 +2,9 @@
 
 ## Estado
 
-La Fase 2 está en desarrollo. La política de aislamiento y el bootstrap autenticado del rootfs tienen pruebas contractuales. Todavía no existe evidencia registrada de una descarga real ni de un arranque del Arch Executor.
+La Fase 2 está en desarrollo. La política de aislamiento, el pin de autoridad y artefacto, y el bootstrap real del rootfs AArch64 están validados. Todavía no existe evidencia de un arranque del Arch Executor mediante `systemd-nspawn`.
 
-No debe interpretarse una validación estática verde como evidencia de que el ejecutor funciona.
+No debe interpretarse una descarga y extracción verde como evidencia de aislamiento en tiempo de ejecución.
 
 ## Frontera inicial
 
@@ -39,30 +39,37 @@ Las pruebas negativas se ejecutan con:
 sh tests/shell/test-arch-executor-policy.sh
 ```
 
-## Bootstrap autenticado
+## Rootfs autenticado y fijado
 
-El rootfs oficial se procesa mediante:
+Los valores aprobados están en:
+
+```text
+config/arch-rootfs-release.env
+config/keys/archlinuxarm-build-system.asc
+```
+
+El bootstrap se ejecuta mediante:
 
 ```sh
-sudo env \
-  ARCH_ROOTFS_EXPECTED_SHA256='<64 hexadecimales>' \
-  sh scripts/bootstrap-arch-rootfs.sh
+sudo sh scripts/bootstrap-arch-rootfs.sh
 ```
 
 El bootstrap:
 
 - usa HTTPS para el tarball y la firma;
 - fija la huella completa `68B3537F39A313B3E574D06777193F152BDBE6A6`;
-- obtiene la clave mediante HKPS;
-- verifica la firma GPG;
-- exige el SHA-256 exacto;
+- verifica el SHA-256 de la clave local;
+- verifica la firma con `gpgv`, sin keyserver ni agente;
+- exige SHA-256, SHA-512, tamaño y estructura exactos;
 - rechaza rutas absolutas o traversal dentro del archivo;
-- extrae como root para preservar propietarios, ACLs y xattrs;
+- extrae como root para preservar propietarios, ACL y xattrs;
 - publica dentro de `/var/lib/machines` mediante renombrado atómico;
 - conserva metadata dentro y fuera del rootfs;
 - no inicia el contenedor.
 
-La documentación completa está en `docs/ARCH_ROOTFS_BOOTSTRAP.md` y ADR-0004.
+La ejecución real `29880817129` publicó e inspeccionó el rootfs, confirmó `ID=archarm` y un `pacman` ELF64 AArch64, y después eliminó tanto rootfs como estado.
+
+La documentación completa está en `docs/ARCH_ROOTFS_BOOTSTRAP.md`, ADR-0004 y ADR-0005.
 
 ## Rutas previstas
 
@@ -76,16 +83,17 @@ El rootfs se mantiene separado de su metadata y de la evidencia de descarga. Nin
 
 ## Siguiente bloque verificable
 
-El siguiente cambio deberá ejecutar una descarga real con SHA-256 fijado y conservar evidencia de:
+El siguiente cambio deberá iniciar el rootfs validado mediante `systemd-nspawn` y conservar evidencia de:
 
-1. URL y firma recibidas;
-2. huella completa verificada;
-3. SHA-256 esperado y observado;
-4. versiones de curl, GnuPG y bsdtar;
-5. publicación del rootfs;
-6. identidad AArch64 del userspace;
-7. inicio y parada mediante la política `.nspawn`;
-8. fallo, destrucción y reconstrucción sin afectar Debian.
+1. aplicación de la política `.nspawn`;
+2. inicio del init del contenedor;
+3. userspace AArch64 operativo;
+4. red sin interfaz utilizable;
+5. raíz no modificable fuera del estado permitido;
+6. ausencia de bind mounts y dispositivos no autorizados;
+7. parada controlada;
+8. fallo forzado sin afectar Debian;
+9. destrucción y reconstrucción desde el mismo pin.
 
 ## Fuera de alcance actual
 
