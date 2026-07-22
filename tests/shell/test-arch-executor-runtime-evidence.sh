@@ -52,8 +52,12 @@ EOF
 
     printf 'generation=1\npid1_comm=systemd\nnetwork_interfaces=lo\n' > "$directory/clean-proof.env"
     printf 'generation=2\npid1_comm=systemd\nnetwork_interfaces=lo\n' > "$directory/rebuild-proof.env"
-    printf '         0   100000       65536\n' > "$directory/clean-uid-map.txt"
-    printf '         0   200000       65536\n' > "$directory/rebuild-uid-map.txt"
+    printf '         0   131072       65536\n' > "$directory/clean-uid-map.txt"
+    printf '         0   196608       65536\n' > "$directory/rebuild-uid-map.txt"
+    printf '131072\n' > "$directory/generation-1-uid-shift.txt"
+    printf '196608\n' > "$directory/generation-2-uid-shift.txt"
+    : > "$directory/ownership-shift-generation-1.log"
+    : > "$directory/ownership-shift-generation-2.log"
     printf 'ro,nosuid,nodev\n' > "$directory/clean-root-options.txt"
     printf 'ro,nosuid,nodev\n' > "$directory/rebuild-root-options.txt"
     printf 'tmpfs\n' > "$directory/clean-var-fstype.txt"
@@ -74,6 +78,16 @@ HOST_ROOT=$TMP_DIR/host-root
 cp -R "$VALID" "$HOST_ROOT"
 printf '         0        0       65536\n' > "$HOST_ROOT/clean-uid-map.txt"
 expect_reject 'host root identity mapping' "$HOST_ROOT"
+
+SHIFT_MISMATCH=$TMP_DIR/shift-mismatch
+cp -R "$VALID" "$SHIFT_MISMATCH"
+printf '262144\n' > "$SHIFT_MISMATCH/generation-1-uid-shift.txt"
+expect_reject 'prepared UID shift mismatch' "$SHIFT_MISMATCH"
+
+UNALIGNED_SHIFT=$TMP_DIR/unaligned-shift
+cp -R "$VALID" "$UNALIGNED_SHIFT"
+printf '200000\n' > "$UNALIGNED_SHIFT/generation-2-uid-shift.txt"
+expect_reject 'unaligned prepared UID shift' "$UNALIGNED_SHIFT"
 
 NETWORK=$TMP_DIR/network
 cp -R "$VALID" "$NETWORK"
