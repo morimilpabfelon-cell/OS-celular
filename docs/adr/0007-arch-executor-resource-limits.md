@@ -1,6 +1,6 @@
 # ADR-0007: límites de recursos del Arch Executor
 
-- Estado: aceptada para validación
+- Estado: aceptada y validada
 - Fecha: 2026-07-22
 
 ## Contexto
@@ -39,19 +39,28 @@ config/arch-executor-resource-limits.env
 
 El archivo instalado de límites debe coincidir exactamente con la versión del repositorio. El ciclo de vida rechaza el arranque o la destrucción cuando detecta divergencia.
 
-## Validación obligatoria
+## Validación
 
-Una ejecución AArch64 nativa debe demostrar:
+La ejecución AArch64 nativa `29892193434`, sobre el head `66fa058a2aaa5692d1c2d7ae578cdce6e5a17b7e`, demostró:
 
 1. cgroup v2 activo;
-2. `cpu.max` finito y equivalente al porcentaje declarado;
-3. `memory.high`, `memory.max` y `memory.swap.max` exactos;
-4. `pids.max` exacto;
-5. PID 1 de Arch contenido en el cgroup limitado;
-6. `/var` como `tmpfs` con tamaño e inodos exactos;
-7. rechazo de una reserva mayor que el límite de `/var`;
-8. parada y destrucción completas;
-9. Debian sin cambios en boot ID, red y archivo centinela.
+2. `cpu.max=100000 100000`;
+3. `memory.high=536870912`;
+4. `memory.max=805306368`;
+5. `memory.swap.max=0`;
+6. `pids.max=256`;
+7. PID 1 de Arch bajo `/system.slice/morimil-arch-resource-limits-ci.service/payload/init.scope`;
+8. `/var` como `tmpfs` de `268435456` bytes y `65536` inodos;
+9. rechazo de una reserva superior al límite de `/var`;
+10. parada y destrucción completas;
+11. Debian sin cambios en boot ID, red, namespace y archivo centinela.
+
+Artefacto:
+
+```text
+morimil-arch-executor-resource-limits-29892193434
+sha256:e51a51f81225dbf7e5fe1bc500cc358abf29bd7ea8e56cb3fe26905c63f2b086
+```
 
 ## Consecuencias
 
