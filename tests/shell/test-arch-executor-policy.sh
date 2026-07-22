@@ -37,9 +37,15 @@ source = valid.read_text(encoding="utf-8")
 cases = {
     "shared host networking": source.replace("Private=yes", "Private=no"),
     "identity UID mapping": source.replace("PrivateUsers=pick", "PrivateUsers=identity"),
+    "runtime idmapped ownership": source.replace("PrivateUsersOwnership=off", "PrivateUsersOwnership=map"),
+    "runtime recursive chown": source.replace("PrivateUsersOwnership=off", "PrivateUsersOwnership=chown"),
+    "host journal link": source.replace("LinkJournal=no", "LinkJournal=host"),
+    "host resolver import": source.replace("ResolvConf=off", "ResolvConf=bind-host"),
+    "host timezone import": source.replace("Timezone=off", "Timezone=bind"),
     "capability grant": source + "\nCapability=all\n",
     "host device bind": source + "\nBind=/dev:/dev\n",
-    "writable root override": source + "\nReadOnly=no\n",
+    "writable root override": source.replace("ReadOnly=yes", "ReadOnly=no"),
+    "virtual ethernet": source.replace("VirtualEthernet=no", "VirtualEthernet=yes"),
 }
 
 with tempfile.TemporaryDirectory(prefix="morimil-arch-policy-") as temp:

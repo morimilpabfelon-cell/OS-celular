@@ -20,10 +20,15 @@ expected = {
         "Boot": "yes",
         "PrivateUsers": "pick",
         "NoNewPrivileges": "yes",
+        "Hostname": "morimil-arch",
+        "LinkJournal": "no",
+        "ResolvConf": "off",
+        "Timezone": "off",
     },
     "Files": {
         "ReadOnly": "yes",
         "Volatile": "state",
+        "PrivateUsersOwnership": "off",
     },
     "Network": {
         "Private": "yes",

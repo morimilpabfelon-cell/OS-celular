@@ -39,11 +39,14 @@ for path in \
     scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
     scripts/check-arch-executor-policy.sh \
+    scripts/check-arch-executor-runtime-evidence.sh \
     scripts/check-arch-rootfs-pin.sh \
     scripts/check-arch-rootfs-release-evidence.sh \
     scripts/ci-bootstrap-arch-rootfs.sh \
     scripts/ci-build-arm64.sh \
     scripts/ci-inspect-ext4.sh \
+    scripts/ci-runtime-command-wrapper.sh \
+    scripts/ci-validate-arch-executor-runtime.sh \
     scripts/configure-validation-image.sh \
     scripts/fingerprint-qemu-image.sh \
     scripts/inspect-arch-rootfs-release.sh \
@@ -58,6 +61,7 @@ for path in \
     tests/python/test_validate_rootfs_archive.py \
     tests/shell/test-scripts.sh \
     tests/shell/test-arch-executor-policy.sh \
+    tests/shell/test-arch-executor-runtime-evidence.sh \
     tests/shell/test-arch-rootfs-bootstrap.sh \
     tests/shell/test-arch-rootfs-pin.sh \
     tests/shell/test-arch-rootfs-release-evidence.sh \
@@ -65,7 +69,8 @@ for path in \
     tests/shell/test-ext4-inspection.sh \
     tests/shell/test-image-configuration.sh \
     tests/shell/test-image-fingerprints.sh \
-    tests/shell/test-image-normalization.sh
+    tests/shell/test-image-normalization.sh \
+    tests/shell/test-runtime-command-wrapper.sh
 do
     if [ ! -f "$path" ]; then
         printf 'error: required file is missing: %s\n' "$path" >&2
