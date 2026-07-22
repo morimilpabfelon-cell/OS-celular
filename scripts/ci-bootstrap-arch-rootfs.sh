@@ -10,6 +10,7 @@ esac
 
 ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build/arch-rootfs-bootstrap}
+BUILD_PARENT=${BUILD_DIR%/*}
 PIN_FILE=${ARCH_ROOTFS_PIN_FILE:-$ROOT_DIR/config/arch-rootfs-release.env}
 STATUS_FILE=${ARCH_ROOTFS_CI_STATUS_FILE:-$ROOT_DIR/arch-rootfs-bootstrap-status.txt}
 MACHINE_ROOT=$BUILD_DIR/machines
@@ -32,7 +33,7 @@ for command_name in file readelf find du sha256sum awk wc cp rm mkdir chmod cat 
 done
 
 mkdir -p "$EVIDENCE_DIR"
-chmod 0755 "$BUILD_DIR" "$EVIDENCE_DIR"
+chmod 0755 "$BUILD_PARENT" "$BUILD_DIR" "$EVIDENCE_DIR"
 
 cleanup() {
     rm -rf "$MACHINE_ROOT" "$STATE_ROOT"
