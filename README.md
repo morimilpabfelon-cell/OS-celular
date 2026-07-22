@@ -6,7 +6,7 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 2E: ciclo de vida operacional del Arch Executor completado.**
+**Fase 2F: límites de recursos del Arch Executor en validación.**
 
 La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen.
 
@@ -20,6 +20,8 @@ Las Fases 2A–2E ya validaron:
 - raíz de solo lectura y estado volátil;
 - parada limpia, fallo forzado y reconstrucción sin afectar Debian;
 - operaciones delimitadas `create`, `start`, `status`, `stop`, `destroy` y `rebuild`.
+
+La Fase 2F incorpora límites declarativos de CPU, memoria, swap, tareas y almacenamiento volátil, aplicados por Debian mediante cgroup v2 y una unidad transitoria de systemd.
 
 ## Alcance
 
@@ -44,11 +46,12 @@ Las Fases 2A–2E ya validaron:
 - [ADR-0004: bootstrap autenticado del rootfs Arch](docs/adr/0004-authenticated-arch-rootfs-bootstrap.md)
 - [ADR-0005: release fijada y validación real del rootfs Arch](docs/adr/0005-pinned-arch-rootfs-release.md)
 - [ADR-0006: ciclo de vida operacional del Arch Executor](docs/adr/0006-arch-executor-lifecycle.md)
+- [ADR-0007: límites de recursos del Arch Executor](docs/adr/0007-arch-executor-resource-limits.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
 ## Objetivo verificable actual
 
-Cerrar la Fase 2 con límites explícitos de CPU, memoria y almacenamiento, además de una lista permitida para futuros montajes de datos. Después comienza Morimil Core.
+Validar en AArch64 que el PID 1 de Arch permanece dentro de una unidad limitada a una CPU equivalente, 768 MiB de memoria, cero swap, 256 tareas y 256 MiB de `/var`. Después quedará pendiente definir la lista permitida para futuros montajes de datos antes de iniciar Morimil Core.
 
 La validación en QEMU o `systemd-nspawn` no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
@@ -56,7 +59,7 @@ La validación en QEMU o `systemd-nspawn` no implica compatibilidad con un telé
 
 Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
 
-El workflow distingue pruebas estáticas, contratos simulados y ejecución real. Ninguna descarga, extracción o simulación sustituye una prueba real de arranque y aislamiento.
+El workflow distingue pruebas estáticas, contratos simulados y ejecución real. Ninguna descarga, extracción o simulación sustituye una prueba real de arranque, aislamiento y aplicación de límites.
 
 ## Licencia
 
