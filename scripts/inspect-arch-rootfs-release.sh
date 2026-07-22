@@ -96,6 +96,15 @@ ACTUAL_FINGERPRINT=$(awk -F: '$1 == "fpr" { print $10; exit }' "$OUTPUT_DIR/key.
 gpg \
     --homedir "$GNUPGHOME" \
     --batch \
+    --armor \
+    --export "$SIGNING_FINGERPRINT" \
+    > "$OUTPUT_DIR/signing-key.asc"
+[ -s "$OUTPUT_DIR/signing-key.asc" ] || fail 'verified signing key export is empty'
+SIGNING_KEY_SHA256=$(sha256sum "$OUTPUT_DIR/signing-key.asc" | awk '{ print $1 }')
+
+gpg \
+    --homedir "$GNUPGHOME" \
+    --batch \
     --status-fd 1 \
     --verify "$SIGNATURE" "$ARCHIVE" \
     > "$OUTPUT_DIR/signature.status" 2> "$OUTPUT_DIR/signature.log"
@@ -135,6 +144,7 @@ cat > "$OUTPUT_DIR/release.env" <<EOF
 MORIMIL_ARCH_ROOTFS_URL=$ROOTFS_URL
 MORIMIL_ARCH_ROOTFS_SIGNATURE_URL=$SIGNATURE_URL
 MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT=$SIGNING_FINGERPRINT
+MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256=$SIGNING_KEY_SHA256
 MORIMIL_ARCH_ROOTFS_SHA256=$ARCHIVE_SHA256
 MORIMIL_ARCH_ROOTFS_SHA512=$ARCHIVE_SHA512
 MORIMIL_ARCH_ROOTFS_SIZE=$ARCHIVE_SIZE
