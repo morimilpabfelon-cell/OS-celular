@@ -21,7 +21,7 @@ fail() {
     exit 1
 }
 
-for command_name in curl gpg sha256sum sha512sum bsdtar python3 mktemp awk wc id mv rm mkdir chmod grep; do
+for command_name in curl gpg gpgv sha256sum sha512sum bsdtar python3 mktemp awk wc id mv rm mkdir chmod grep; do
     command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
 done
 
@@ -124,7 +124,7 @@ WORK_DIR=$(mktemp -d "$DESTINATION_PARENT/.morimil-arch-download.XXXXXX")
 STAGE_DIR=$(mktemp -d "$DESTINATION_PARENT/.morimil-arch-stage.XXXXXX")
 ARCHIVE=$WORK_DIR/rootfs.tar.gz
 SIGNATURE=$WORK_DIR/rootfs.tar.gz.sig
-GNUPGHOME=$WORK_DIR/gnupg
+KEYRING=$WORK_DIR/archlinuxarm-build-system.gpg
 ARCHIVE_LIST=$WORK_DIR/archive-list.txt
 METADATA_TMP=$STATE_DIR/rootfs-source.env.tmp
 PUBLISHED=0
@@ -142,17 +142,15 @@ cleanup() {
 }
 trap cleanup 0 HUP INT TERM
 
-mkdir -m 0700 "$GNUPGHOME"
-
 curl --fail --location --proto '=https' --proto-redir '=https' --tlsv1.2 --output "$ARCHIVE" "$ROOTFS_URL"
 curl --fail --location --proto '=https' --proto-redir '=https' --tlsv1.2 --output "$SIGNATURE" "$SIGNATURE_URL"
 
-gpg --homedir "$GNUPGHOME" --batch --import "$KEY_FILE"
-gpg --homedir "$GNUPGHOME" --batch --with-colons --fingerprint "$SIGNING_FINGERPRINT" > "$WORK_DIR/fingerprint.txt"
+gpg --batch --with-colons --show-keys "$KEY_FILE" > "$WORK_DIR/fingerprint.txt"
 ACTUAL_FINGERPRINT=$(awk -F: '$1 == "fpr" { print $10; exit }' "$WORK_DIR/fingerprint.txt")
 [ "$ACTUAL_FINGERPRINT" = "$SIGNING_FINGERPRINT" ] || fail 'the local Arch Linux ARM signing key fingerprint does not match the pinned fingerprint'
-
-gpg --homedir "$GNUPGHOME" --batch --verify "$SIGNATURE" "$ARCHIVE"
+gpg --batch --yes --dearmor --output "$KEYRING" "$KEY_FILE"
+[ -s "$KEYRING" ] || fail 'the local Arch signing key could not be converted to a verification keyring'
+gpgv --keyring "$KEYRING" "$SIGNATURE" "$ARCHIVE"
 
 ACTUAL_SIGNATURE_SHA256=$(sha256sum "$SIGNATURE" | awk '{ print $1 }')
 [ "$ACTUAL_SIGNATURE_SHA256" = "$EXPECTED_SIGNATURE_SHA256" ] || fail "signature SHA-256 mismatch: expected $EXPECTED_SIGNATURE_SHA256, received $ACTUAL_SIGNATURE_SHA256"
