@@ -76,16 +76,22 @@ Resultado validado:
 
 ### Fase 2E — Ciclo de vida operacional
 
-**Estado:** en validación.
+**Estado:** completada.
 
-Entregables:
+Resultado validado:
 
 - comandos `create`, `start`, `status`, `stop`, `destroy` y `rebuild`;
 - bloqueo contra operaciones concurrentes;
 - rollback de creación;
 - estado estable `clave=valor`;
 - unidad transitoria administrada por Debian;
-- prueba AArch64 del ciclo completo.
+- dos arranques mediante la interfaz operacional;
+- `stop` conserva el rootfs y `rebuild` conserva el SHA-256 fijado;
+- `/var` no persiste entre arranques;
+- `destroy` elimina rootfs, estado y política;
+- Debian conserva boot ID, red y archivo centinela.
+
+Evidencia principal: ejecución AArch64 `29890214148` y artefacto `morimil-arch-executor-lifecycle-29890214148`.
 
 ### Pendiente para cerrar Fase 2
 
