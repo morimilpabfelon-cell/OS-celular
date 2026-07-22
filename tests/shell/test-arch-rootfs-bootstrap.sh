@@ -63,20 +63,32 @@ EOF
 cat > "$MOCK_BIN/gpg" <<'EOF'
 #!/bin/sh
 case " $* " in
-    *' --with-colons --fingerprint '*)
+    *' --with-colons --show-keys '*)
         fingerprint=${MOCK_GPG_FINGERPRINT:-68B3537F39A313B3E574D06777193F152BDBE6A6}
         printf 'fpr:::::::::%s:\n' "$fingerprint"
         ;;
-    *' --verify '*)
-        [ "${MOCK_GPG_VERIFY_FAIL:-0}" -eq 0 ]
-        ;;
-    *' --import '*)
-        [ "${MOCK_GPG_IMPORT_FAIL:-0}" -eq 0 ]
+    *' --dearmor '*)
+        [ "${MOCK_GPG_DEARMOR_FAIL:-0}" -eq 0 ] || exit 1
+        output=
+        while [ "$#" -gt 0 ]; do
+            if [ "$1" = --output ]; then
+                output=$2
+                break
+            fi
+            shift
+        done
+        [ -n "$output" ] || exit 2
+        printf 'keyring\n' > "$output"
         ;;
     *)
         :
         ;;
 esac
+EOF
+
+cat > "$MOCK_BIN/gpgv" <<'EOF'
+#!/bin/sh
+[ "${MOCK_GPGV_VERIFY_FAIL:-0}" -eq 0 ]
 EOF
 
 cat > "$MOCK_BIN/sha256sum" <<'EOF'
@@ -207,8 +219,8 @@ expect_reject_without_publish 'missing local key' "$TMP_DIR/machines/missing-key
 expect_reject_without_publish 'local key SHA-256 mismatch' "$TMP_DIR/machines/key-sha" "$TMP_DIR/state/key-sha" \
     'MOCK_SIGNING_KEY_SHA256=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
 
-expect_reject_without_publish 'local key import failure' "$TMP_DIR/machines/key-import" "$TMP_DIR/state/key-import" \
-    'MOCK_GPG_IMPORT_FAIL=1'
+expect_reject_without_publish 'local key conversion failure' "$TMP_DIR/machines/key-conversion" "$TMP_DIR/state/key-conversion" \
+    'MOCK_GPG_DEARMOR_FAIL=1'
 
 expect_reject_without_publish 'HTTP transport' "$TMP_DIR/machines/http" "$TMP_DIR/state/http" \
     'ARCH_ROOTFS_URL=http://example.invalid/rootfs.tar.gz'
@@ -220,7 +232,7 @@ expect_reject_without_publish 'wrong signing fingerprint' "$TMP_DIR/machines/fin
     'MOCK_GPG_FINGERPRINT=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
 
 expect_reject_without_publish 'signature verification failure' "$TMP_DIR/machines/signature" "$TMP_DIR/state/signature" \
-    'MOCK_GPG_VERIFY_FAIL=1'
+    'MOCK_GPGV_VERIFY_FAIL=1'
 
 expect_reject_without_publish 'signature SHA-256 mismatch' "$TMP_DIR/machines/signature-sha" "$TMP_DIR/state/signature-sha" \
     'MOCK_SIGNATURE_SHA256=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
