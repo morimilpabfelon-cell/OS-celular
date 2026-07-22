@@ -246,6 +246,7 @@ jobs:
             curl \
             file \
             gnupg \
+            gpgv \
             libarchive-tools
 
       - name: Download, verify, publish, inspect, and remove rootfs
