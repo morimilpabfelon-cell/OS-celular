@@ -25,6 +25,7 @@ STATUS_FILE=${ARCH_EXECUTOR_CI_STATUS_FILE:-$ROOT_DIR/arch-executor-runtime-stat
 BOOT_TIMEOUT=${ARCH_EXECUTOR_BOOT_TIMEOUT:-240}
 NSPAWN_PID=
 CURRENT_LOG=
+FORCED_FAILURE_EXIT=
 
 fail() {
     printf 'error: %s\n' "$*" >&2
@@ -265,6 +266,8 @@ capture_runtime() {
     grep -Fqx 'pid1_comm=systemd' "$proof_file" || fail "$label runtime proof does not identify systemd as PID 1"
     grep -Fqx 'network_interfaces=lo' "$proof_file" || fail "$label runtime proof exposes a non-loopback interface"
 
+    # This program is expanded by the guest shell, not by this host script.
+    # shellcheck disable=SC2016
     run_in_machine /usr/bin/sh -c 'for path in /sys/class/net/*; do [ -e "$path" ] || continue; printf "%s\n" "${path##*/}"; done' \
         | sort > "$interfaces_file"
     [ "$(tr '\n' ',' < "$interfaces_file" | sed 's/,$//')" = lo ] || fail "$label container exposes a non-loopback interface"
@@ -324,7 +327,7 @@ force_failure() {
     printf '%s\n' "$exit_code" > "$EVIDENCE_DIR/forced-failure-nspawn-exit.txt"
     [ "$exit_code" -ne 0 ] || fail 'forced guest PID 1 failure produced a zero nspawn exit'
     wait_machine_gone || fail 'machine remained registered after forced failure'
-    printf '%s\n' "$exit_code"
+    FORCED_FAILURE_EXIT=$exit_code
 }
 
 bootstrap_generation 1
@@ -335,7 +338,7 @@ stop_cleanly clean
 
 start_machine forced-failure
 run_in_machine /usr/bin/test ! -e /var/lib/morimil-runtime/volatile-marker
-FORCED_FAILURE_EXIT=$(force_failure)
+force_failure
 
 [ "$(cat /proc/sys/kernel/random/boot_id)" = "$HOST_BOOT_ID" ] || fail 'host boot ID changed after forced failure'
 [ "$(cat /proc/1/comm)" = systemd ] || fail 'host PID 1 changed after forced failure'
