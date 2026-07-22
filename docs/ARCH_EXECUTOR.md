@@ -2,9 +2,9 @@
 
 ## Estado
 
-Las Fases 2A–2E están validadas. Existe evidencia AArch64 nativa de que el rootfs autenticado arranca con systemd como PID 1 dentro de `systemd-nspawn`, usa UID y red privados, conserva la raíz en solo lectura y puede fallar, detenerse, destruirse y reconstruirse sin afectar Debian.
+Las Fases 2A–2F están validadas. Existe evidencia AArch64 nativa de que el rootfs autenticado arranca con systemd como PID 1 dentro de `systemd-nspawn`, usa UID y red privados, conserva la raíz en solo lectura, respeta límites cgroup y de almacenamiento, y puede fallar, detenerse, destruirse y reconstruirse sin afectar Debian.
 
-La Fase 2F incorpora límites explícitos de CPU, memoria, swap, tareas y almacenamiento volátil. Su aplicación real permanece en validación hasta completar el job AArch64 dedicado.
+Solo queda definir una lista permitida explícita para futuros montajes de datos antes de iniciar Morimil Core.
 
 ## Frontera de aislamiento
 
@@ -149,7 +149,7 @@ Se niega a borrar una política o un perfil de límites que no coincida con la v
 
 Ejecuta `stop`, `destroy` y `create`. Descarga de nuevo el artefacto fijado y deja el executor detenido.
 
-## Límites declarados
+## Límites validados
 
 El archivo canónico es:
 
@@ -167,6 +167,40 @@ El almacenamiento escribible de estado se limita con:
 
 ```text
 TemporaryFileSystem=/var:mode=0755,nodev,nosuid,size=268435456,nr_inodes=65536
+```
+
+La ejecución AArch64 `29892193434`, sobre el head `66fa058a2aaa5692d1c2d7ae578cdce6e5a17b7e`, observó:
+
+```text
+cpu.max=100000 100000
+memory.high=536870912
+memory.max=805306368
+memory.swap.max=0
+pids.max=256
+var_fstype=tmpfs
+var_size_bytes=268435456
+var_inodes=65536
+```
+
+El PID 1 de Arch quedó en:
+
+```text
+/system.slice/morimil-arch-resource-limits-ci.service/payload/init.scope
+```
+
+La unidad limitada fue:
+
+```text
+/system.slice/morimil-arch-resource-limits-ci.service
+```
+
+La prueba confirmó además rechazo de una reserva superior al límite de `/var`, eliminación completa y Debian sin cambios.
+
+Artefacto:
+
+```text
+morimil-arch-executor-resource-limits-29892193434
+sha256:e51a51f81225dbf7e5fe1bc500cc358abf29bd7ea8e56cb3fe26905c63f2b086
 ```
 
 La raíz permanece en solo lectura. No existe almacenamiento persistente de Arch fuera del rootfs autenticado y de metadata controlada por Debian.
