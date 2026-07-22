@@ -19,6 +19,7 @@ for path in \
     "$EVIDENCE_DIR/signature.transfer" \
     "$EVIDENCE_DIR/signature.curl.log" \
     "$EVIDENCE_DIR/key.txt" \
+    "$EVIDENCE_DIR/signing-key.asc" \
     "$EVIDENCE_DIR/signature.status" \
     "$EVIDENCE_DIR/signature.log" \
     "$EVIDENCE_DIR/archive-list.txt" \
@@ -27,6 +28,7 @@ for path in \
 do
     [ -f "$path" ] || fail "required evidence is missing: $path"
 done
+[ -s "$EVIDENCE_DIR/signing-key.asc" ] || fail 'exported signing key is empty'
 
 if find "$EVIDENCE_DIR" -maxdepth 1 -type f \( -name '*.tar' -o -name '*.tar.gz' -o -name '*.sig' \) | grep -q .; then
     fail 'rootfs archives and detached signatures must not be retained as evidence artifacts'
@@ -42,6 +44,7 @@ get_value() {
 URL=$(get_value MORIMIL_ARCH_ROOTFS_URL)
 SIGNATURE_URL=$(get_value MORIMIL_ARCH_ROOTFS_SIGNATURE_URL)
 FINGERPRINT=$(get_value MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT)
+SIGNING_KEY_SHA256=$(get_value MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256)
 SHA256=$(get_value MORIMIL_ARCH_ROOTFS_SHA256)
 SHA512=$(get_value MORIMIL_ARCH_ROOTFS_SHA512)
 SIZE=$(get_value MORIMIL_ARCH_ROOTFS_SIZE)
@@ -54,15 +57,24 @@ OBSERVED_AT=$(get_value MORIMIL_ARCH_ROOTFS_OBSERVED_AT)
 case "$URL" in https://*) ;; *) fail 'rootfs evidence URL must use HTTPS' ;; esac
 [ "$SIGNATURE_URL" = "$URL.sig" ] || fail 'signature URL must be the rootfs URL with .sig appended'
 [ "$FINGERPRINT" = "$EXPECTED_FINGERPRINT" ] || fail 'signing fingerprint does not match the project pin'
+grep -Fq ":$EXPECTED_FINGERPRINT:" "$EVIDENCE_DIR/key.txt" || fail 'key evidence does not contain the expected full fingerprint'
 
-case "$SHA256" in *[!0-9a-f]*|'') fail 'rootfs SHA-256 must be lowercase hexadecimal' ;; esac
-[ "${#SHA256}" -eq 64 ] || fail 'rootfs SHA-256 must contain 64 hexadecimal characters'
-case "$SHA512" in *[!0-9a-f]*|'') fail 'rootfs SHA-512 must be lowercase hexadecimal' ;; esac
-[ "${#SHA512}" -eq 128 ] || fail 'rootfs SHA-512 must contain 128 hexadecimal characters'
-case "$SIGNATURE_SHA256" in *[!0-9a-f]*|'') fail 'signature SHA-256 must be lowercase hexadecimal' ;; esac
-[ "${#SIGNATURE_SHA256}" -eq 64 ] || fail 'signature SHA-256 must contain 64 hexadecimal characters'
-case "$LIST_SHA256" in *[!0-9a-f]*|'') fail 'archive list SHA-256 must be lowercase hexadecimal' ;; esac
-[ "${#LIST_SHA256}" -eq 64 ] || fail 'archive list SHA-256 must contain 64 hexadecimal characters'
+validate_hex() {
+    name=$1
+    value=$2
+    length=$3
+    case "$value" in *[!0-9a-f]*|'') fail "$name must be lowercase hexadecimal" ;; esac
+    [ "${#value}" -eq "$length" ] || fail "$name has an invalid length"
+}
+
+validate_hex 'signing key SHA-256' "$SIGNING_KEY_SHA256" 64
+validate_hex 'rootfs SHA-256' "$SHA256" 64
+validate_hex 'rootfs SHA-512' "$SHA512" 128
+validate_hex 'signature SHA-256' "$SIGNATURE_SHA256" 64
+validate_hex 'archive list SHA-256' "$LIST_SHA256" 64
+
+ACTUAL_KEY_SHA256=$(sha256sum "$EVIDENCE_DIR/signing-key.asc" | awk '{ print $1 }')
+[ "$ACTUAL_KEY_SHA256" = "$SIGNING_KEY_SHA256" ] || fail 'exported signing key checksum does not match release metadata'
 
 case "$SIZE" in *[!0-9]*|'') fail 'rootfs size must be a positive integer' ;; esac
 [ "$SIZE" -ge 100000000 ] || fail 'rootfs size is unexpectedly small'
