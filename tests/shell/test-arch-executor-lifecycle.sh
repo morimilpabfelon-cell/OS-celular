@@ -26,7 +26,7 @@ done
 
 sh "$LIFECYCLE" help > "$TMP_DIR/help.txt"
 for command_name in create start status stop destroy rebuild; do
-    grep -Eq "^  $command_name[[:space:]]" "$TMP_DIR/help.txt" || fail "help is missing lifecycle command: $command_name"
+    grep -Eq "^  ${command_name}[[:space:]]" "$TMP_DIR/help.txt" || fail "help is missing lifecycle command: $command_name"
 done
 
 if sh "$LIFECYCLE" unsupported > "$TMP_DIR/unsupported.out" 2> "$TMP_DIR/unsupported.err"; then
