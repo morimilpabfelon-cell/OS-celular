@@ -24,7 +24,7 @@ Este documento separa pruebas estáticas, contratos simulados y ejecución real.
 | Parada limpia | Validada | salida 0 de `systemd-nspawn` |
 | Fallo forzado sin afectar Debian | Validado | host antes/después |
 | Destrucción y reconstrucción | Validadas | dos generaciones del mismo pin |
-| Ciclo operacional | En validación | job ARM64 de Fase 2E |
+| Ciclo operacional | Validado | ejecución `29890214148` |
 | Límites de recursos | Pendientes | CPU, memoria y almacenamiento |
 | Soporte de teléfono físico | No iniciado | matriz por componente |
 
@@ -141,7 +141,9 @@ sha256:dde5245fde37efdde46efa67cc3bcfec94dd4f54c310c4cf9ddd27887da6a347
 
 ## Ciclo de vida operacional
 
-La Fase 2E separa operaciones que antes estaban unidas en una prueba destructiva:
+La ejecución ARM64 nativa `29890214148` validó el código operacional del head `7e9a02e8259e5f408e77cc864096b613842330a3`.
+
+Operaciones probadas:
 
 ```text
 create
@@ -152,16 +154,28 @@ destroy
 rebuild
 ```
 
-La validación AArch64 deberá conservar evidencia de:
+Resultados:
 
-- `create` sin arranque implícito;
-- dos arranques mediante la interfaz operacional;
-- estado `absent`, `stopped` y `running`;
-- parada que conserva el rootfs;
-- `/var` no persistente;
-- reconstrucción con el mismo SHA-256;
-- destrucción completa;
-- host sin cambios.
+- `create` dejó el executor en estado `stopped`;
+- dos llamadas a `start` alcanzaron systemd como PID 1 y `morimil-executor.target`;
+- `status` reflejó correctamente `stopped`, `running` y `absent`;
+- `stop` conservó el rootfs;
+- `/var` usó `tmpfs` y el marcador volátil no persistió;
+- `rebuild` dejó el executor detenido;
+- ambas generaciones usaron el SHA-256 `3cf5764fb6fec7bffdff98787e52ccd15d5d6390a2496c7028d7c4950404c56a`;
+- ambos ciclos usaron UID shift `479133696`;
+- solo existió la interfaz `lo`;
+- los namespaces de red fueron distintos del host;
+- la raíz permaneció de solo lectura;
+- `NoNewPrivileges=1` se mantuvo;
+- `destroy` eliminó rootfs, metadata y política;
+- Debian conservó boot ID, red y archivo centinela.
+
+El artefacto contiene 44 archivos y tuvo digest:
+
+```text
+sha256:69123abf328f4778e77db3f0dfd368b0a9dec7b3e5f711c8afc966b3474955d5
+```
 
 Los contratos se validan con:
 
