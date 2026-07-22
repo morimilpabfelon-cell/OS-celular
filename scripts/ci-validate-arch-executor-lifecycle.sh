@@ -40,19 +40,19 @@ done
 mkdir -p "$EVIDENCE_DIR" /run/systemd/nspawn
 chmod 0755 "$BUILD_DIR" "$EVIDENCE_DIR" /run/systemd/nspawn
 
-export ARCH_EXECUTOR_MACHINE=$MACHINE
-export ARCH_EXECUTOR_MACHINE_ROOT=$MACHINE_ROOT
-export ARCH_EXECUTOR_STATE_ROOT=$STATE_ROOT
-export ARCH_EXECUTOR_ROOTFS=$DESTINATION
-export ARCH_EXECUTOR_STATE_DIR=$STATE_DIR
-export ARCH_EXECUTOR_POLICY_FILE=$ROOT_DIR/config/nspawn/morimil-arch.nspawn
-export ARCH_EXECUTOR_INSTALLED_POLICY=$INSTALLED_POLICY
-export ARCH_ROOTFS_PIN_FILE=$ROOT_DIR/config/arch-rootfs-release.env
-export ARCH_ROOTFS_KEY_FILE=$ROOT_DIR/config/keys/archlinuxarm-build-system.asc
-export ARCH_EXECUTOR_BOOTSTRAP_SCRIPT=$ROOT_DIR/scripts/bootstrap-arch-rootfs.sh
-export ARCH_EXECUTOR_PREPARE_SCRIPT=$ROOT_DIR/scripts/prepare-arch-executor-rootfs.sh
+export ARCH_EXECUTOR_MACHINE="$MACHINE"
+export ARCH_EXECUTOR_MACHINE_ROOT="$MACHINE_ROOT"
+export ARCH_EXECUTOR_STATE_ROOT="$STATE_ROOT"
+export ARCH_EXECUTOR_ROOTFS="$DESTINATION"
+export ARCH_EXECUTOR_STATE_DIR="$STATE_DIR"
+export ARCH_EXECUTOR_POLICY_FILE="$ROOT_DIR/config/nspawn/morimil-arch.nspawn"
+export ARCH_EXECUTOR_INSTALLED_POLICY="$INSTALLED_POLICY"
+export ARCH_ROOTFS_PIN_FILE="$ROOT_DIR/config/arch-rootfs-release.env"
+export ARCH_ROOTFS_KEY_FILE="$ROOT_DIR/config/keys/archlinuxarm-build-system.asc"
+export ARCH_EXECUTOR_BOOTSTRAP_SCRIPT="$ROOT_DIR/scripts/bootstrap-arch-rootfs.sh"
+export ARCH_EXECUTOR_PREPARE_SCRIPT="$ROOT_DIR/scripts/prepare-arch-executor-rootfs.sh"
 export ARCH_EXECUTOR_UNIT=morimil-arch-lifecycle-ci.service
-export ARCH_EXECUTOR_LOCK_FILE=$LOCK_FILE
+export ARCH_EXECUTOR_LOCK_FILE="$LOCK_FILE"
 export ARCH_EXECUTOR_BOOT_TIMEOUT=180
 
 run_lifecycle() {
