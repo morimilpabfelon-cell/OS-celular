@@ -54,7 +54,8 @@ grep -Fq 'Volatile=state' "$POLICY" || fail 'policy lacks volatile state'
 grep -Fq 'Private=yes' "$POLICY" || fail 'policy lacks private network'
 grep -Fq 'VirtualEthernet=no' "$POLICY" || fail 'policy permits a virtual Ethernet interface'
 
-grep -Fq "machine_is_running && fail 'executor must be stopped before destroy'" "$LIFECYCLE" || fail 'destroy does not refuse a running executor'
+grep -Fq "fail 'executor must be stopped before destroy'" "$LIFECYCLE" || fail 'destroy does not refuse a running executor'
+grep -Fq "fail 'executor service must be stopped before destroy'" "$LIFECYCLE" || fail 'destroy does not refuse an active service'
 grep -Fq "fail 'installed policy differs from the repository policy; refusing to remove it'" "$LIFECYCLE" || fail 'destroy does not protect a modified installed policy'
 
 rebuild_block=$(sed -n '/^[[:space:]]*rebuild)$/,/^[[:space:]]*;;/p' "$LIFECYCLE")
