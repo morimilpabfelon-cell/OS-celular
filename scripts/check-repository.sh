@@ -35,6 +35,7 @@ for path in \
     docs/adr/0002-qemu-arm64-validation-image.md \
     docs/adr/0003-arch-executor-isolation.md \
     docs/adr/0004-authenticated-arch-rootfs-bootstrap.md \
+    docs/adr/0005-pinned-arch-rootfs-release.md \
     scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
     scripts/check-arch-executor-policy.sh \
