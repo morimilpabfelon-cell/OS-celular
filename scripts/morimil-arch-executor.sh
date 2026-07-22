@@ -71,11 +71,17 @@ case "$BOOT_TIMEOUT" in
 esac
 [ "$BOOT_TIMEOUT" -ge 30 ] || fail 'ARCH_EXECUTOR_BOOT_TIMEOUT must be at least 30 seconds'
 
-for path_name in MACHINE_ROOT STATE_ROOT DESTINATION STATE_DIR INSTALLED_POLICY LOCK_FILE; do
-    eval "path_value=\${$path_name}"
+for path_value in \
+    "$MACHINE_ROOT" \
+    "$STATE_ROOT" \
+    "$DESTINATION" \
+    "$STATE_DIR" \
+    "$INSTALLED_POLICY" \
+    "$LOCK_FILE"
+do
     case "$path_value" in
         /*) ;;
-        *) fail "$path_name must be absolute" ;;
+        *) fail "lifecycle path must be absolute: $path_value" ;;
     esac
 done
 [ "$DESTINATION" = "$MACHINE_ROOT/$MACHINE" ] || fail 'executor rootfs must be the named machine below ARCH_EXECUTOR_MACHINE_ROOT'
@@ -92,7 +98,7 @@ case "$DESTINATION:$STATE_DIR:$INSTALLED_POLICY:$LOCK_FILE" in
 esac
 
 [ "$(id -u)" -eq 0 ] || fail 'root privileges are required for executor lifecycle operations'
-for command_name in awk chmod cmp cp flock grep id machinectl mkdir mv nsenter rm sleep systemctl systemd-run; do
+for command_name in awk chmod cmp cp flock id machinectl mkdir mv nsenter rm sleep systemctl systemd-run; do
     command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
 done
 
@@ -117,11 +123,16 @@ unit_is_active() {
 }
 
 policy_matches() {
-    [ -f "$POLICY_FILE" ] && [ -f "$INSTALLED_POLICY" ] && cmp "$POLICY_FILE" "$INSTALLED_POLICY" >/dev/null 2>&1
+    [ -f "$POLICY_FILE" ] && \
+        [ -f "$INSTALLED_POLICY" ] && \
+        cmp "$POLICY_FILE" "$INSTALLED_POLICY" >/dev/null 2>&1
 }
 
 executor_is_created() {
-    [ -d "$DESTINATION" ] && [ -f "$SOURCE_FILE" ] && [ -f "$PREPARED_FILE" ] && policy_matches
+    [ -d "$DESTINATION" ] && \
+        [ -f "$SOURCE_FILE" ] && \
+        [ -f "$PREPARED_FILE" ] && \
+        policy_matches
 }
 
 run_in_executor() {
@@ -219,10 +230,10 @@ command_create() {
         fail 'executor rootfs preparation failed; partial state was removed'
     fi
 
-    executor_is_created || {
+    if ! executor_is_created; then
         rollback_create
         fail 'executor creation did not produce a complete lifecycle state'
-    }
+    fi
 
     printf 'machine=%s\nstate=stopped\nresult=created\n' "$MACHINE"
 }
@@ -233,7 +244,9 @@ command_start() {
         printf 'machine=%s\nstate=running\nresult=already-running\n' "$MACHINE"
         return 0
     fi
-    unit_is_active && fail 'executor service is active without a registered machine'
+    if unit_is_active; then
+        fail 'executor service is active without a registered machine'
+    fi
 
     systemctl start systemd-machined.service
     systemctl is-active --quiet systemd-machined.service || fail 'systemd-machined did not become active'
@@ -313,8 +326,12 @@ command_stop() {
 }
 
 command_destroy() {
-    machine_is_running && fail 'executor must be stopped before destroy'
-    unit_is_active && fail 'executor service must be stopped before destroy'
+    if machine_is_running; then
+        fail 'executor must be stopped before destroy'
+    fi
+    if unit_is_active; then
+        fail 'executor service must be stopped before destroy'
+    fi
 
     if [ -e "$INSTALLED_POLICY" ] && ! policy_matches; then
         fail 'installed policy differs from the repository policy; refusing to remove it'
