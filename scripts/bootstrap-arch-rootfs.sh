@@ -10,11 +10,11 @@ esac
 
 ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 PIN_FILE=${ARCH_ROOTFS_PIN_FILE:-$ROOT_DIR/config/arch-rootfs-release.env}
+KEY_FILE=${ARCH_ROOTFS_KEY_FILE:-$ROOT_DIR/config/keys/archlinuxarm-build-system.asc}
 MACHINE_ROOT=${ARCH_ROOTFS_MACHINE_ROOT:-/var/lib/machines}
 STATE_ROOT=${ARCH_ROOTFS_STATE_ROOT:-/var/lib/morimil/executors}
 DESTINATION=${ARCH_ROOTFS_DESTINATION:-$MACHINE_ROOT/morimil-arch}
 STATE_DIR=${ARCH_ROOTFS_STATE_DIR:-$STATE_ROOT/arch}
-KEYSERVER=${ARCH_ROOTFS_KEYSERVER:-hkps://keyserver.ubuntu.com}
 
 fail() {
     printf 'error: %s\n' "$*" >&2
@@ -26,6 +26,7 @@ for command_name in curl gpg sha256sum sha512sum bsdtar python3 mktemp awk wc id
 done
 
 [ -f "$PIN_FILE" ] || fail "Arch rootfs pin is missing: $PIN_FILE"
+[ -f "$KEY_FILE" ] || fail "Arch signing key is missing: $KEY_FILE"
 sh "$ROOT_DIR/scripts/check-arch-rootfs-pin.sh" "$PIN_FILE" >/dev/null
 
 pin_value() {
@@ -38,6 +39,7 @@ pin_value() {
 PIN_URL=$(pin_value MORIMIL_ARCH_ROOTFS_URL)
 PIN_SIGNATURE_URL=$(pin_value MORIMIL_ARCH_ROOTFS_SIGNATURE_URL)
 PIN_FINGERPRINT=$(pin_value MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT)
+PIN_SIGNING_KEY_SHA256=$(pin_value MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256)
 PIN_SHA256=$(pin_value MORIMIL_ARCH_ROOTFS_SHA256)
 PIN_SHA512=$(pin_value MORIMIL_ARCH_ROOTFS_SHA512)
 PIN_SIZE=$(pin_value MORIMIL_ARCH_ROOTFS_SIZE)
@@ -53,6 +55,7 @@ else
     SIGNATURE_URL=$PIN_SIGNATURE_URL
 fi
 
+EXPECTED_SIGNING_KEY_SHA256=${ARCH_ROOTFS_EXPECTED_SIGNING_KEY_SHA256:-$PIN_SIGNING_KEY_SHA256}
 EXPECTED_SHA256=${ARCH_ROOTFS_EXPECTED_SHA256:-$PIN_SHA256}
 EXPECTED_SHA512=${ARCH_ROOTFS_EXPECTED_SHA512:-$PIN_SHA512}
 EXPECTED_SIZE=${ARCH_ROOTFS_EXPECTED_SIZE:-$PIN_SIZE}
@@ -67,11 +70,6 @@ case "$ROOTFS_URL" in
 esac
 [ "$SIGNATURE_URL" = "$ROOTFS_URL.sig" ] || fail 'ARCH_ROOTFS_SIGNATURE_URL must equal rootfs URL plus .sig'
 
-case "$KEYSERVER" in
-    hkps://*) ;;
-    *) fail 'ARCH_ROOTFS_KEYSERVER must use HKPS' ;;
-esac
-
 validate_hex() {
     name=$1
     value=$2
@@ -80,6 +78,7 @@ validate_hex() {
     [ "${#value}" -eq "$length" ] || fail "$name has an invalid length"
 }
 
+validate_hex 'expected signing key SHA-256' "$EXPECTED_SIGNING_KEY_SHA256" 64
 validate_hex 'expected rootfs SHA-256' "$EXPECTED_SHA256" 64
 validate_hex 'expected rootfs SHA-512' "$EXPECTED_SHA512" 128
 validate_hex 'expected signature SHA-256' "$EXPECTED_SIGNATURE_SHA256" 64
@@ -116,6 +115,9 @@ esac
 [ ! -e "$DESTINATION" ] || fail "destination already exists: $DESTINATION"
 [ ! -e "$STATE_DIR/rootfs-source.env" ] || fail "state metadata already exists: $STATE_DIR/rootfs-source.env"
 
+ACTUAL_SIGNING_KEY_SHA256=$(sha256sum "$KEY_FILE" | awk '{ print $1 }')
+[ "$ACTUAL_SIGNING_KEY_SHA256" = "$EXPECTED_SIGNING_KEY_SHA256" ] || fail "signing key SHA-256 mismatch: expected $EXPECTED_SIGNING_KEY_SHA256, received $ACTUAL_SIGNING_KEY_SHA256"
+
 DESTINATION_PARENT=${DESTINATION%/*}
 mkdir -p "$DESTINATION_PARENT" "$STATE_DIR"
 WORK_DIR=$(mktemp -d "$DESTINATION_PARENT/.morimil-arch-download.XXXXXX")
@@ -145,10 +147,10 @@ mkdir -m 0700 "$GNUPGHOME"
 curl --fail --location --proto '=https' --proto-redir '=https' --tlsv1.2 --output "$ARCHIVE" "$ROOTFS_URL"
 curl --fail --location --proto '=https' --proto-redir '=https' --tlsv1.2 --output "$SIGNATURE" "$SIGNATURE_URL"
 
-gpg --homedir "$GNUPGHOME" --batch --keyserver "$KEYSERVER" --recv-keys "$SIGNING_FINGERPRINT"
+gpg --homedir "$GNUPGHOME" --batch --import "$KEY_FILE"
 gpg --homedir "$GNUPGHOME" --batch --with-colons --fingerprint "$SIGNING_FINGERPRINT" > "$WORK_DIR/fingerprint.txt"
 ACTUAL_FINGERPRINT=$(awk -F: '$1 == "fpr" { print $10; exit }' "$WORK_DIR/fingerprint.txt")
-[ "$ACTUAL_FINGERPRINT" = "$SIGNING_FINGERPRINT" ] || fail 'the imported Arch Linux ARM signing key fingerprint does not match the pinned fingerprint'
+[ "$ACTUAL_FINGERPRINT" = "$SIGNING_FINGERPRINT" ] || fail 'the local Arch Linux ARM signing key fingerprint does not match the pinned fingerprint'
 
 gpg --homedir "$GNUPGHOME" --batch --verify "$SIGNATURE" "$ARCHIVE"
 
@@ -185,6 +187,7 @@ cat > "$STAGE_DIR/etc/morimil/rootfs-source.env" <<EOF
 MORIMIL_ROOTFS_URL=$ROOTFS_URL
 MORIMIL_ROOTFS_SIGNATURE_URL=$SIGNATURE_URL
 MORIMIL_ROOTFS_SIGNING_FINGERPRINT=$SIGNING_FINGERPRINT
+MORIMIL_ROOTFS_SIGNING_KEY_SHA256=$ACTUAL_SIGNING_KEY_SHA256
 MORIMIL_ROOTFS_SHA256=$ACTUAL_SHA256
 MORIMIL_ROOTFS_SHA512=$ACTUAL_SHA512
 MORIMIL_ROOTFS_SIZE=$ACTUAL_SIZE
@@ -198,6 +201,7 @@ cat > "$METADATA_TMP" <<EOF
 MORIMIL_ROOTFS_URL=$ROOTFS_URL
 MORIMIL_ROOTFS_SIGNATURE_URL=$SIGNATURE_URL
 MORIMIL_ROOTFS_SIGNING_FINGERPRINT=$SIGNING_FINGERPRINT
+MORIMIL_ROOTFS_SIGNING_KEY_SHA256=$ACTUAL_SIGNING_KEY_SHA256
 MORIMIL_ROOTFS_SHA256=$ACTUAL_SHA256
 MORIMIL_ROOTFS_SHA512=$ACTUAL_SHA512
 MORIMIL_ROOTFS_SIZE=$ACTUAL_SIZE
