@@ -22,6 +22,8 @@ for path in \
     .github/workflows/validate.yml \
     README.md \
     CONTRIBUTING.md \
+    config/arch-rootfs-release.env \
+    config/keys/archlinuxarm-build-system.asc \
     config/nspawn/morimil-arch.nspawn \
     docs/ARCHITECTURE.md \
     docs/ROADMAP.md \
@@ -33,13 +35,18 @@ for path in \
     docs/adr/0002-qemu-arm64-validation-image.md \
     docs/adr/0003-arch-executor-isolation.md \
     docs/adr/0004-authenticated-arch-rootfs-bootstrap.md \
+    docs/adr/0005-pinned-arch-rootfs-release.md \
     scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
     scripts/check-arch-executor-policy.sh \
+    scripts/check-arch-rootfs-pin.sh \
+    scripts/check-arch-rootfs-release-evidence.sh \
+    scripts/ci-bootstrap-arch-rootfs.sh \
     scripts/ci-build-arm64.sh \
     scripts/ci-inspect-ext4.sh \
     scripts/configure-validation-image.sh \
     scripts/fingerprint-qemu-image.sh \
+    scripts/inspect-arch-rootfs-release.sh \
     scripts/inspect-ext4-root.sh \
     scripts/manifest-ext4-tree.py \
     scripts/normalize-qemu-image.sh \
@@ -52,6 +59,8 @@ for path in \
     tests/shell/test-scripts.sh \
     tests/shell/test-arch-executor-policy.sh \
     tests/shell/test-arch-rootfs-bootstrap.sh \
+    tests/shell/test-arch-rootfs-pin.sh \
+    tests/shell/test-arch-rootfs-release-evidence.sh \
     tests/shell/test-boot-proof.sh \
     tests/shell/test-ext4-inspection.sh \
     tests/shell/test-image-configuration.sh \

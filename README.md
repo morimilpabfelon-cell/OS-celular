@@ -6,11 +6,11 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 2: Arch Executor aislado en desarrollo.**
+**Fase 2: rootfs Arch Linux ARM autenticado y validado; arranque aislado pendiente.**
 
-La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen. La Fase 2 ya contiene una política `systemd-nspawn` restrictiva y un bootstrap contractual que exige firma, huella completa y SHA-256 antes de publicar un rootfs Arch Linux ARM.
+La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen. La Fase 2 ya contiene una política `systemd-nspawn` restrictiva y un bootstrap real que verifica una clave local fijada, firma, SHA-256, SHA-512, tamaño y estructura exacta antes de publicar un rootfs Arch Linux ARM.
 
-Todavía no existe evidencia registrada de una descarga real ni de un arranque del Arch Executor. Tampoco existe soporte para un teléfono físico.
+La ejecución real descargó, verificó, extrajo, inspeccionó y eliminó el rootfs sin ejecutar `pacman` ni iniciar el contenedor. Todavía no existe evidencia de un arranque del Arch Executor ni soporte para un teléfono físico.
 
 ## Alcance
 
@@ -33,11 +33,12 @@ Todavía no existe evidencia registrada de una descarga real ni de un arranque d
 - [ADR-0002: imagen Debian ARM64 para QEMU](docs/adr/0002-qemu-arm64-validation-image.md)
 - [ADR-0003: aislamiento del Arch Executor](docs/adr/0003-arch-executor-isolation.md)
 - [ADR-0004: bootstrap autenticado del rootfs Arch](docs/adr/0004-authenticated-arch-rootfs-bootstrap.md)
+- [ADR-0005: release fijada y validación real del rootfs Arch](docs/adr/0005-pinned-arch-rootfs-release.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
 ## Objetivo verificable actual
 
-Ejecutar una adquisición real del rootfs Arch Linux ARM AArch64 con firma y SHA-256 fijados, iniciar el ejecutor sin red ni acceso general al anfitrión y demostrar que puede destruirse, fallar y reconstruirse sin afectar Debian.
+Iniciar el rootfs validado mediante la política `systemd-nspawn`, sin red ni acceso general al anfitrión, detenerlo de forma controlada y demostrar fallo, destrucción y reconstrucción sin afectar Debian.
 
 La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
@@ -45,7 +46,7 @@ La validación en QEMU no implica compatibilidad con un teléfono físico. El ha
 
 Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
 
-El workflow distingue pruebas estáticas, contratos simulados y ejecución real. Un bootstrap contractual verde no prueba que el rootfs oficial se descargue o que Arch arranque.
+El workflow distingue pruebas estáticas, contratos simulados y ejecución real. Una descarga y extracción verdes no prueban que el contenedor arranque ni que el aislamiento sea suficiente en tiempo de ejecución.
 
 ## Licencia
 
