@@ -3,12 +3,6 @@
 set -eu
 umask 077
 
-case "$0" in
-    */*) SCRIPT_DIR=${0%/*} ;;
-    *) SCRIPT_DIR=. ;;
-esac
-
-ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 MACHINE=${ARCH_EXECUTOR_MACHINE:-morimil-arch}
 ROOTFS=${ARCH_EXECUTOR_ROOTFS:-/var/lib/machines/$MACHINE}
 STATE_DIR=${ARCH_EXECUTOR_STATE_DIR:-/var/lib/morimil/executors/arch}
