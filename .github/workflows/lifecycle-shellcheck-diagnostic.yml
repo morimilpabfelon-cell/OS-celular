@@ -1,0 +1,32 @@
+name: Lifecycle ShellCheck diagnostic
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          show-progress: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends shellcheck
+      - run: |
+          shellcheck -f gcc -s sh \
+            scripts/check-arch-executor-lifecycle-evidence.sh \
+            scripts/ci-validate-arch-executor-lifecycle.sh \
+            scripts/morimil-arch-executor.sh \
+            scripts/prepare-arch-executor-rootfs.sh \
+            tests/shell/test-arch-executor-lifecycle-evidence.sh \
+            tests/shell/test-arch-executor-lifecycle.sh
