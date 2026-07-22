@@ -106,7 +106,6 @@ run_in_namespaces() {
         --pid \
         --root="/proc/$MACHINE_LEADER/root" \
         --wd="/proc/$MACHINE_LEADER/root" \
-        --fork \
         -- "$@"
 }
 
@@ -137,9 +136,12 @@ EOF_TARGET
         systemd-networkd.service \
         systemd-networkd.socket \
         systemd-networkd-persistent-storage.service \
+        systemd-networkd-resolve-hook.socket \
+        systemd-networkd-varlink-metrics.socket \
         systemd-networkd-varlink.socket \
         systemd-resolved.service \
-        systemd-resolved-monitor.socket
+        systemd-resolved-monitor.socket \
+        systemd-resolved-varlink.socket
     do
         rm -f "$unit_dir/$unit"
         ln -s /dev/null "$unit_dir/$unit"
