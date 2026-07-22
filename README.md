@@ -6,11 +6,11 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 2F: límites de recursos del Arch Executor en validación.**
+**Fase 2F: límites de recursos del Arch Executor completados.**
 
 La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen.
 
-Las Fases 2A–2E ya validaron:
+Las Fases 2A–2F ya validaron:
 
 - política `systemd-nspawn` restrictiva;
 - autoridad y rootfs Arch Linux ARM AArch64 fijados;
@@ -19,9 +19,11 @@ Las Fases 2A–2E ya validaron:
 - UID y red privados;
 - raíz de solo lectura y estado volátil;
 - parada limpia, fallo forzado y reconstrucción sin afectar Debian;
-- operaciones delimitadas `create`, `start`, `status`, `stop`, `destroy` y `rebuild`.
+- operaciones delimitadas `create`, `start`, `status`, `stop`, `destroy` y `rebuild`;
+- límites cgroup v2 de CPU, memoria, swap y tareas;
+- `/var` temporal limitado por tamaño e inodos.
 
-La Fase 2F incorpora límites declarativos de CPU, memoria, swap, tareas y almacenamiento volátil, aplicados por Debian mediante cgroup v2 y una unidad transitoria de systemd.
+La ejecución AArch64 `29892193434` confirmó que PID 1 de Arch permanece dentro de la unidad limitada de Debian y que el perfil declarado se aplica exactamente.
 
 ## Alcance
 
@@ -51,7 +53,7 @@ La Fase 2F incorpora límites declarativos de CPU, memoria, swap, tareas y almac
 
 ## Objetivo verificable actual
 
-Validar en AArch64 que el PID 1 de Arch permanece dentro de una unidad limitada a una CPU equivalente, 768 MiB de memoria, cero swap, 256 tareas y 256 MiB de `/var`. Después quedará pendiente definir la lista permitida para futuros montajes de datos antes de iniciar Morimil Core.
+Cerrar la Fase 2 con una lista permitida explícita para futuros montajes de datos. Ningún bind mount libre será aceptado. Después comienza Morimil Core.
 
 La validación en QEMU o `systemd-nspawn` no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
