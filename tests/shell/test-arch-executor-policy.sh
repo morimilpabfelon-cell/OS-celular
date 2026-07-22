@@ -37,7 +37,8 @@ source = valid.read_text(encoding="utf-8")
 cases = {
     "shared host networking": source.replace("Private=yes", "Private=no"),
     "identity UID mapping": source.replace("PrivateUsers=pick", "PrivateUsers=identity"),
-    "ownership rewriting": source.replace("PrivateUsersOwnership=map", "PrivateUsersOwnership=chown"),
+    "unsupported idmapped ownership": source.replace("PrivateUsersOwnership=chown", "PrivateUsersOwnership=map"),
+    "ownership adjustment disabled": source.replace("PrivateUsersOwnership=chown", "PrivateUsersOwnership=off"),
     "host journal link": source.replace("LinkJournal=no", "LinkJournal=host"),
     "host resolver import": source.replace("ResolvConf=off", "ResolvConf=bind-host"),
     "host timezone import": source.replace("Timezone=off", "Timezone=bind"),
