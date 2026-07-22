@@ -12,6 +12,7 @@ ROOT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)
 BUILD_DIR=${BUILD_DIR:-$ROOT_DIR/build/arch-rootfs-bootstrap}
 BUILD_PARENT=${BUILD_DIR%/*}
 PIN_FILE=${ARCH_ROOTFS_PIN_FILE:-$ROOT_DIR/config/arch-rootfs-release.env}
+KEY_FILE=${ARCH_ROOTFS_KEY_FILE:-$ROOT_DIR/config/keys/archlinuxarm-build-system.asc}
 STATUS_FILE=${ARCH_ROOTFS_CI_STATUS_FILE:-$ROOT_DIR/arch-rootfs-bootstrap-status.txt}
 MACHINE_ROOT=$BUILD_DIR/machines
 STATE_ROOT=$BUILD_DIR/state
@@ -27,6 +28,7 @@ fail() {
 [ "$(id -u)" -eq 0 ] || fail 'real Arch rootfs bootstrap validation must run as root'
 [ ! -e "$BUILD_DIR" ] || fail "build directory already exists: $BUILD_DIR"
 [ ! -e "$STATUS_FILE" ] || fail "status file already exists: $STATUS_FILE"
+[ -f "$KEY_FILE" ] || fail "Arch signing key is missing: $KEY_FILE"
 
 for command_name in file readelf find du sha256sum awk wc cp rm mkdir chmod cat tail; do
     command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
@@ -43,6 +45,7 @@ trap cleanup 0 HUP INT TERM
 sh "$ROOT_DIR/scripts/check-arch-rootfs-pin.sh" "$PIN_FILE" > "$EVIDENCE_DIR/pin-validation.txt"
 
 if ! ARCH_ROOTFS_PIN_FILE=$PIN_FILE \
+    ARCH_ROOTFS_KEY_FILE=$KEY_FILE \
     ARCH_ROOTFS_MACHINE_ROOT=$MACHINE_ROOT \
     ARCH_ROOTFS_STATE_ROOT=$STATE_ROOT \
     ARCH_ROOTFS_DESTINATION=$DESTINATION \
@@ -70,6 +73,7 @@ pin_value() {
     awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$PIN_FILE"
 }
 
+PIN_SIGNING_KEY_SHA256=$(pin_value MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256)
 PIN_SHA256=$(pin_value MORIMIL_ARCH_ROOTFS_SHA256)
 PIN_SHA512=$(pin_value MORIMIL_ARCH_ROOTFS_SHA512)
 PIN_SIZE=$(pin_value MORIMIL_ARCH_ROOTFS_SIZE)
@@ -77,7 +81,11 @@ PIN_SIGNATURE_SHA256=$(pin_value MORIMIL_ARCH_ROOTFS_SIGNATURE_SHA256)
 PIN_ENTRIES=$(pin_value MORIMIL_ARCH_ROOTFS_ARCHIVE_ENTRIES)
 PIN_LIST_SHA256=$(pin_value MORIMIL_ARCH_ROOTFS_ARCHIVE_LIST_SHA256)
 
+ACTUAL_KEY_SHA256=$(sha256sum "$KEY_FILE" | awk '{ print $1 }')
+[ "$ACTUAL_KEY_SHA256" = "$PIN_SIGNING_KEY_SHA256" ] || fail 'repository signing key checksum does not match pin'
+
 for metadata in "$DESTINATION/etc/morimil/rootfs-source.env" "$STATE_DIR/rootfs-source.env"; do
+    grep -Fqx "MORIMIL_ROOTFS_SIGNING_KEY_SHA256=$PIN_SIGNING_KEY_SHA256" "$metadata" || fail 'published signing key checksum does not match pin'
     grep -Fqx "MORIMIL_ROOTFS_SHA256=$PIN_SHA256" "$metadata" || fail 'published SHA-256 does not match pin'
     grep -Fqx "MORIMIL_ROOTFS_SHA512=$PIN_SHA512" "$metadata" || fail 'published SHA-512 does not match pin'
     grep -Fqx "MORIMIL_ROOTFS_SIZE=$PIN_SIZE" "$metadata" || fail 'published size does not match pin'
@@ -107,15 +115,18 @@ readelf -h "$DESTINATION/usr/bin/pacman" > "$EVIDENCE_DIR/pacman-elf-header.txt"
 grep -Eq 'Machine:[[:space:]]+AArch64' "$EVIDENCE_DIR/pacman-elf-header.txt" || fail 'pacman ELF machine is not AArch64'
 
 cp "$PIN_FILE" "$EVIDENCE_DIR/pin.env"
+cp "$KEY_FILE" "$EVIDENCE_DIR/signing-key.asc"
 cp "$STATE_DIR/rootfs-source.env" "$EVIDENCE_DIR/rootfs-source.env"
 cp "$OS_RELEASE" "$EVIDENCE_DIR/os-release"
 sha256sum "$EVIDENCE_DIR/pin.env" > "$EVIDENCE_DIR/pin.env.sha256"
+sha256sum "$EVIDENCE_DIR/signing-key.asc" > "$EVIDENCE_DIR/signing-key.asc.sha256"
 sha256sum "$EVIDENCE_DIR/rootfs-source.env" > "$EVIDENCE_DIR/rootfs-source.env.sha256"
 sha256sum "$EVIDENCE_DIR/os-release" > "$EVIDENCE_DIR/os-release.sha256"
 
 {
     printf 'rootfs_filesystem_entries=%s\n' "$ROOTFS_ENTRIES"
     printf 'rootfs_extracted_bytes=%s\n' "$ROOTFS_BYTES"
+    printf 'rootfs_signing_key_sha256=%s\n' "$PIN_SIGNING_KEY_SHA256"
     printf 'rootfs_archive_sha256=%s\n' "$PIN_SHA256"
     printf 'rootfs_archive_size=%s\n' "$PIN_SIZE"
 } > "$EVIDENCE_DIR/rootfs-inspection.txt"
