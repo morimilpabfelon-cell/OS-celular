@@ -284,7 +284,7 @@ jobs:
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.body, '<!-- run-arch-executor-runtime -->')
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 120
+    timeout-minutes: 75
 
     steps:
       - name: Check out repository
@@ -300,6 +300,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends \
             binutils \
             ca-certificates \
+            coreutils \
             curl \
             file \
             gnupg \
@@ -310,12 +311,27 @@ jobs:
 
       - name: Bootstrap, boot, fail, rebuild, and remove executor
         run: |
+          set -euo pipefail
+          wrapper_dir="$RUNNER_TEMP/morimil-runtime-wrappers"
+          mkdir -p "$wrapper_dir"
+          for command_name in systemd-nspawn systemd-run systemctl machinectl; do
+            ln -s "$GITHUB_WORKSPACE/scripts/ci-runtime-command-wrapper.sh" "$wrapper_dir/$command_name"
+          done
+          chmod 0755 "$GITHUB_WORKSPACE/scripts/ci-runtime-command-wrapper.sh"
+
           sudo env \
+            PATH="$wrapper_dir:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
             BUILD_DIR="$GITHUB_WORKSPACE/build/arch-executor-runtime" \
             ARCH_ROOTFS_PIN_FILE="$GITHUB_WORKSPACE/config/arch-rootfs-release.env" \
             ARCH_ROOTFS_KEY_FILE="$GITHUB_WORKSPACE/config/keys/archlinuxarm-build-system.asc" \
             ARCH_EXECUTOR_POLICY_FILE="$GITHUB_WORKSPACE/config/nspawn/morimil-arch.nspawn" \
-            sh scripts/ci-validate-arch-executor-runtime.sh
+            ARCH_EXECUTOR_COMMAND_LOG="$GITHUB_WORKSPACE/arch-executor-runtime-commands.log" \
+            ARCH_EXECUTOR_OWNERSHIP_TIMEOUT=600 \
+            ARCH_EXECUTOR_NSPAWN_TIMEOUT=360 \
+            ARCH_EXECUTOR_REMOTE_COMMAND_TIMEOUT=60 \
+            ARCH_EXECUTOR_CONTROL_TIMEOUT=60 \
+            sh scripts/ci-validate-arch-executor-runtime.sh \
+            2>&1 | tee arch-executor-runtime-driver.log
 
       - name: Prepare runtime evidence permissions
         if: always()
@@ -327,10 +343,16 @@ jobs:
             chmod 0755 "$evidence"
             find "$evidence" -maxdepth 1 -type f -exec chmod 0644 {} +
           fi
-          if [ -f arch-executor-runtime-status.txt ]; then
-            sudo chown "$(id -u):$(id -g)" arch-executor-runtime-status.txt
-            chmod 0644 arch-executor-runtime-status.txt
-          fi
+          for path in \
+            arch-executor-runtime-status.txt \
+            arch-executor-runtime-driver.log \
+            arch-executor-runtime-commands.log
+          do
+            if [ -f "$path" ]; then
+              sudo chown "$(id -u):$(id -g)" "$path"
+              chmod 0644 "$path"
+            fi
+          done
 
       - name: Upload Arch executor runtime evidence
         if: always()
@@ -340,5 +362,7 @@ jobs:
           path: |
             build/arch-executor-runtime/evidence/
             arch-executor-runtime-status.txt
+            arch-executor-runtime-driver.log
+            arch-executor-runtime-commands.log
           if-no-files-found: warn
           retention-days: 7
