@@ -22,6 +22,7 @@ for path in \
     .github/workflows/validate.yml \
     README.md \
     CONTRIBUTING.md \
+    config/arch-executor-resource-limits.env \
     config/arch-rootfs-release.env \
     config/keys/archlinuxarm-build-system.asc \
     config/nspawn/morimil-arch.nspawn \
@@ -37,10 +38,13 @@ for path in \
     docs/adr/0004-authenticated-arch-rootfs-bootstrap.md \
     docs/adr/0005-pinned-arch-rootfs-release.md \
     docs/adr/0006-arch-executor-lifecycle.md \
+    docs/adr/0007-arch-executor-resource-limits.md \
     scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
     scripts/check-arch-executor-lifecycle-evidence.sh \
     scripts/check-arch-executor-policy.sh \
+    scripts/check-arch-executor-resource-limits-evidence.sh \
+    scripts/check-arch-executor-resource-limits.sh \
     scripts/check-arch-executor-runtime-evidence.sh \
     scripts/check-arch-rootfs-pin.sh \
     scripts/check-arch-rootfs-release-evidence.sh \
@@ -49,6 +53,7 @@ for path in \
     scripts/ci-inspect-ext4.sh \
     scripts/ci-runtime-command-wrapper.sh \
     scripts/ci-validate-arch-executor-lifecycle.sh \
+    scripts/ci-validate-arch-executor-resource-limits.sh \
     scripts/ci-validate-arch-executor-runtime.sh \
     scripts/configure-validation-image.sh \
     scripts/fingerprint-qemu-image.sh \
@@ -68,6 +73,8 @@ for path in \
     tests/shell/test-arch-executor-lifecycle-evidence.sh \
     tests/shell/test-arch-executor-lifecycle.sh \
     tests/shell/test-arch-executor-policy.sh \
+    tests/shell/test-arch-executor-resource-limits-evidence.sh \
+    tests/shell/test-arch-executor-resource-limits.sh \
     tests/shell/test-arch-executor-runtime-evidence.sh \
     tests/shell/test-arch-rootfs-bootstrap.sh \
     tests/shell/test-arch-rootfs-pin.sh \
