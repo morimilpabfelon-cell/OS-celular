@@ -9,8 +9,8 @@ Timezone=off
 
 [Files]
 ReadOnly=yes
-Volatile=state
 PrivateUsersOwnership=off
+TemporaryFileSystem=/var:mode=0755,nodev,nosuid,size=268435456,nr_inodes=65536
 
 [Network]
 Private=yes
