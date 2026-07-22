@@ -6,11 +6,21 @@ Repositorio del sistema operativo móvil Morimil.
 
 ## Estado
 
-**Fase 2: rootfs Arch Linux ARM autenticado y validado; arranque aislado pendiente.**
+**Fase 2E: ciclo de vida operacional del Arch Executor en validación.**
 
-La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen. La Fase 2 ya contiene una política `systemd-nspawn` restrictiva y un bootstrap real que verifica una clave local fijada, firma, SHA-256, SHA-512, tamaño y estructura exacta antes de publicar un rootfs Arch Linux ARM.
+La Fase 1 validó un proceso reproducible para construir y arrancar Debian 13 ARM64 en QEMU `virt`, alcanzar `multi-user.target`, apagar de forma controlada e inspeccionar la imagen.
 
-La ejecución real descargó, verificó, extrajo, inspeccionó y eliminó el rootfs sin ejecutar `pacman` ni iniciar el contenedor. Todavía no existe evidencia de un arranque del Arch Executor ni soporte para un teléfono físico.
+Las Fases 2A–2D ya validaron:
+
+- política `systemd-nspawn` restrictiva;
+- autoridad y rootfs Arch Linux ARM AArch64 fijados;
+- bootstrap autenticado y publicación atómica;
+- dos arranques reales con systemd como PID 1;
+- UID y red privados;
+- raíz de solo lectura y estado volátil;
+- parada limpia, fallo forzado y reconstrucción sin afectar Debian.
+
+La Fase 2E convierte esa prueba destructiva en operaciones delimitadas: `create`, `start`, `status`, `stop`, `destroy` y `rebuild`.
 
 ## Alcance
 
@@ -34,19 +44,20 @@ La ejecución real descargó, verificó, extrajo, inspeccionó y eliminó el roo
 - [ADR-0003: aislamiento del Arch Executor](docs/adr/0003-arch-executor-isolation.md)
 - [ADR-0004: bootstrap autenticado del rootfs Arch](docs/adr/0004-authenticated-arch-rootfs-bootstrap.md)
 - [ADR-0005: release fijada y validación real del rootfs Arch](docs/adr/0005-pinned-arch-rootfs-release.md)
+- [ADR-0006: ciclo de vida operacional del Arch Executor](docs/adr/0006-arch-executor-lifecycle.md)
 - [Reglas de contribución](CONTRIBUTING.md)
 
 ## Objetivo verificable actual
 
-Iniciar el rootfs validado mediante la política `systemd-nspawn`, sin red ni acceso general al anfitrión, detenerlo de forma controlada y demostrar fallo, destrucción y reconstrucción sin afectar Debian.
+Validar en AArch64 nativo que la interfaz operacional puede crear, iniciar, consultar, detener, reconstruir y destruir el executor sin variar el rootfs fijado ni alterar Debian.
 
-La validación en QEMU no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
+La validación en QEMU o `systemd-nspawn` no implica compatibilidad con un teléfono físico. El hardware se seleccionará después mediante una matriz verificable de soporte.
 
 ## Desarrollo
 
 Los cambios deben realizarse mediante ramas y pull requests. Las decisiones arquitectónicas se registran como ADR y las fuentes externas deben ser oficiales o primarias.
 
-El workflow distingue pruebas estáticas, contratos simulados y ejecución real. Una descarga y extracción verdes no prueban que el contenedor arranque ni que el aislamiento sea suficiente en tiempo de ejecución.
+El workflow distingue pruebas estáticas, contratos simulados y ejecución real. Ninguna descarga, extracción o simulación sustituye una prueba real de arranque y aislamiento.
 
 ## Licencia
 
