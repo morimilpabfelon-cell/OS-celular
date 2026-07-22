@@ -36,8 +36,10 @@ for path in \
     docs/adr/0003-arch-executor-isolation.md \
     docs/adr/0004-authenticated-arch-rootfs-bootstrap.md \
     docs/adr/0005-pinned-arch-rootfs-release.md \
+    docs/adr/0006-arch-executor-lifecycle.md \
     scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
+    scripts/check-arch-executor-lifecycle-evidence.sh \
     scripts/check-arch-executor-policy.sh \
     scripts/check-arch-executor-runtime-evidence.sh \
     scripts/check-arch-rootfs-pin.sh \
@@ -46,13 +48,16 @@ for path in \
     scripts/ci-build-arm64.sh \
     scripts/ci-inspect-ext4.sh \
     scripts/ci-runtime-command-wrapper.sh \
+    scripts/ci-validate-arch-executor-lifecycle.sh \
     scripts/ci-validate-arch-executor-runtime.sh \
     scripts/configure-validation-image.sh \
     scripts/fingerprint-qemu-image.sh \
     scripts/inspect-arch-rootfs-release.sh \
     scripts/inspect-ext4-root.sh \
     scripts/manifest-ext4-tree.py \
+    scripts/morimil-arch-executor.sh \
     scripts/normalize-qemu-image.sh \
+    scripts/prepare-arch-executor-rootfs.sh \
     scripts/run-qemu-arm64.sh \
     scripts/validate-rootfs-archive.py \
     scripts/verify-boot-log.sh \
@@ -60,6 +65,8 @@ for path in \
     tests/python/test_manifest_ext4_tree.py \
     tests/python/test_validate_rootfs_archive.py \
     tests/shell/test-scripts.sh \
+    tests/shell/test-arch-executor-lifecycle-evidence.sh \
+    tests/shell/test-arch-executor-lifecycle.sh \
     tests/shell/test-arch-executor-policy.sh \
     tests/shell/test-arch-executor-runtime-evidence.sh \
     tests/shell/test-arch-rootfs-bootstrap.sh \
