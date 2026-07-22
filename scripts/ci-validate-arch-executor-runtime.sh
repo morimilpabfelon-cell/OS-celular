@@ -356,7 +356,8 @@ stop_cleanly rebuild
 
 GEN1_SHA=$(awk -F= '$1 == "MORIMIL_ROOTFS_SHA256" { print $2; exit }' "$EVIDENCE_DIR/generation-1-rootfs-source.env")
 GEN2_SHA=$(awk -F= '$1 == "MORIMIL_ROOTFS_SHA256" { print $2; exit }' "$EVIDENCE_DIR/generation-2-rootfs-source.env")
-[ -n "$GEN1_SHA" ] && [ "$GEN1_SHA" = "$GEN2_SHA" ] || fail 'reconstructed rootfs checksum differs from generation 1'
+[ -n "$GEN1_SHA" ] || fail 'generation 1 rootfs checksum is missing'
+[ "$GEN1_SHA" = "$GEN2_SHA" ] || fail 'reconstructed rootfs checksum differs from generation 1'
 
 grep -Fqx 'generation=1' "$EVIDENCE_DIR/clean-proof.env" || fail 'clean runtime proof generation mismatch'
 grep -Fqx 'generation=2' "$EVIDENCE_DIR/rebuild-proof.env" || fail 'rebuild runtime proof generation mismatch'
