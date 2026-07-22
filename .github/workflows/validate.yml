@@ -190,6 +190,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends \
             ca-certificates \
             curl \
+            dirmngr \
             gnupg \
             libarchive-tools
 
@@ -243,6 +244,7 @@ jobs:
             binutils \
             ca-certificates \
             curl \
+            dirmngr \
             file \
             gnupg \
             libarchive-tools
