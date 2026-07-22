@@ -35,17 +35,20 @@ make_evidence() {
     : > "$directory/signature.headers"
     printf 'effective_url=https://mirror.example/rootfs.tar.gz.sig\nhttp_code=200\nsize_download=566\ncontent_type=application/octet-stream\n' > "$directory/signature.transfer"
     : > "$directory/signature.curl.log"
-    : > "$directory/key.txt"
+    printf 'fpr:::::::::68B3537F39A313B3E574D06777193F152BDBE6A6:\n' > "$directory/key.txt"
+    printf '%s\n' '-----BEGIN PGP PUBLIC KEY BLOCK-----' 'fixture' '-----END PGP PUBLIC KEY BLOCK-----' > "$directory/signing-key.asc"
     : > "$directory/signature.log"
     : > "$directory/environment.txt"
     printf '[GNUPG:] VALIDSIG 68B3537F39A313B3E574D06777193F152BDBE6A6\n' > "$directory/signature.status"
     printf 'ID=archarm\n' > "$directory/os-release"
     awk 'BEGIN { for (i = 1; i <= 10000; i++) print "usr/lib/morimil-fixture-" i }' > "$directory/archive-list.txt"
+    key_sha=$(sha256sum "$directory/signing-key.asc" | awk '{ print $1 }')
     list_sha=$(sha256sum "$directory/archive-list.txt" | awk '{ print $1 }')
     cat > "$directory/release.env" <<EOF
 MORIMIL_ARCH_ROOTFS_URL=https://mirror.math.princeton.edu/pub/archlinuxarm/os/ArchLinuxARM-aarch64-latest.tar.gz
 MORIMIL_ARCH_ROOTFS_SIGNATURE_URL=https://mirror.math.princeton.edu/pub/archlinuxarm/os/ArchLinuxARM-aarch64-latest.tar.gz.sig
 MORIMIL_ARCH_ROOTFS_SIGNING_FINGERPRINT=68B3537F39A313B3E574D06777193F152BDBE6A6
+MORIMIL_ARCH_ROOTFS_SIGNING_KEY_SHA256=$key_sha
 MORIMIL_ARCH_ROOTFS_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 MORIMIL_ARCH_ROOTFS_SHA512=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 MORIMIL_ARCH_ROOTFS_SIZE=100000000
@@ -70,6 +73,11 @@ FINGERPRINT=$TMP_DIR/fingerprint
 cp -R "$VALID" "$FINGERPRINT"
 sed -i 's/68B3537F39A313B3E574D06777193F152BDBE6A6/0000000000000000000000000000000000000000/' "$FINGERPRINT/release.env"
 expect_reject 'incorrect signing fingerprint' "$FINGERPRINT"
+
+KEY_HASH=$TMP_DIR/key-hash
+cp -R "$VALID" "$KEY_HASH"
+printf 'mutation\n' >> "$KEY_HASH/signing-key.asc"
+expect_reject 'mutated signing key export' "$KEY_HASH"
 
 LIST_HASH=$TMP_DIR/list-hash
 cp -R "$VALID" "$LIST_HASH"
