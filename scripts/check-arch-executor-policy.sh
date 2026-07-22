@@ -28,7 +28,7 @@ expected = {
     "Files": {
         "ReadOnly": "yes",
         "Volatile": "state",
-        "PrivateUsersOwnership": "chown",
+        "PrivateUsersOwnership": "off",
     },
     "Network": {
         "Private": "yes",
