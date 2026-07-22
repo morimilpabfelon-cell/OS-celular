@@ -22,6 +22,7 @@ for path in \
     .github/workflows/validate.yml \
     README.md \
     CONTRIBUTING.md \
+    config/arch-rootfs-release.env \
     config/nspawn/morimil-arch.nspawn \
     docs/ARCHITECTURE.md \
     docs/ROADMAP.md \
@@ -36,7 +37,9 @@ for path in \
     scripts/bootstrap-arch-rootfs.sh \
     scripts/build-qemu-arm64.sh \
     scripts/check-arch-executor-policy.sh \
+    scripts/check-arch-rootfs-pin.sh \
     scripts/check-arch-rootfs-release-evidence.sh \
+    scripts/ci-bootstrap-arch-rootfs.sh \
     scripts/ci-build-arm64.sh \
     scripts/ci-inspect-ext4.sh \
     scripts/configure-validation-image.sh \
@@ -54,6 +57,7 @@ for path in \
     tests/shell/test-scripts.sh \
     tests/shell/test-arch-executor-policy.sh \
     tests/shell/test-arch-rootfs-bootstrap.sh \
+    tests/shell/test-arch-rootfs-pin.sh \
     tests/shell/test-arch-rootfs-release-evidence.sh \
     tests/shell/test-boot-proof.sh \
     tests/shell/test-ext4-inspection.sh \
