@@ -4,6 +4,7 @@ set -eu
 
 COMMAND=${0##*/}
 COMMAND_LOG=${ARCH_EXECUTOR_COMMAND_LOG:-/tmp/morimil-arch-runtime-commands.log}
+RUN_STATUS=
 
 fail() {
     printf 'error: %s\n' "$*" >&2
@@ -37,20 +38,52 @@ log_finish() {
 run_bounded() {
     deadline=$1
     shift
+
     set +e
     /usr/bin/timeout \
         --signal=TERM \
         --kill-after=15s \
         "$deadline" \
         "$@"
-    status=$?
+    RUN_STATUS=$?
     set -e
-    printf '%s\n' "$status"
+
+    return 0
 }
 
 machine_leader() {
-    machine=$1
-    /usr/bin/machinectl show "$machine" -p Leader --value
+    deadline=$1
+    machine=$2
+
+    set +e
+    leader=$(
+        /usr/bin/timeout \
+            --signal=TERM \
+            --kill-after=15s \
+            "$deadline" \
+            /usr/bin/machinectl show "$machine" -p Leader --value
+    )
+    leader_status=$?
+    set -e
+
+    if [ "$leader_status" -ne 0 ]; then
+        RUN_STATUS=$leader_status
+        return 0
+    fi
+
+    case "$leader" in
+        *[!0-9]*|'')
+            RUN_STATUS=1
+            return 0
+            ;;
+    esac
+    [ -r "/proc/$leader/status" ] || {
+        RUN_STATUS=1
+        return 0
+    }
+
+    MACHINE_LEADER=$leader
+    RUN_STATUS=0
 }
 
 run_in_namespaces() {
@@ -58,24 +91,21 @@ run_in_namespaces() {
     machine=$2
     shift 2
 
-    leader=$(machine_leader "$machine") || return 1
-    case "$leader" in
-        *[!0-9]*|'') return 1 ;;
-    esac
-    [ -r "/proc/$leader/status" ] || return 1
+    machine_leader "$deadline" "$machine"
+    [ "$RUN_STATUS" -eq 0 ] || return 0
     [ -x /usr/bin/nsenter ] || fail 'nsenter is required for namespace-local runtime inspection'
 
     run_bounded "$deadline" \
         /usr/bin/nsenter \
-        --target "$leader" \
+        --target "$MACHINE_LEADER" \
         --user \
         --mount \
         --uts \
         --ipc \
         --net \
         --pid \
-        --root="/proc/$leader/root" \
-        --wd="/proc/$leader/root" \
+        --root="/proc/$MACHINE_LEADER/root" \
+        --wd="/proc/$MACHINE_LEADER/root" \
         --fork \
         -- "$@"
 }
@@ -143,7 +173,8 @@ case "$COMMAND" in
             configure_runtime_rootfs "$rootfs"
         fi
 
-        status=$(run_bounded "$deadline" /usr/bin/systemd-nspawn "$@")
+        run_bounded "$deadline" /usr/bin/systemd-nspawn "$@"
+        status=$RUN_STATUS
         log_finish "$status"
         exit "$status"
         ;;
@@ -165,7 +196,8 @@ case "$COMMAND" in
         [ -n "$machine" ] || fail 'systemd-run wrapper requires --machine='
         [ "$#" -gt 0 ] || fail 'systemd-run wrapper requires a guest command'
 
-        status=$(run_in_namespaces "$deadline" "$machine" "$@")
+        run_in_namespaces "$deadline" "$machine" "$@"
+        status=$RUN_STATUS
         log_finish "$status"
         exit "$status"
         ;;
@@ -190,13 +222,15 @@ case "$COMMAND" in
                 [ "$target" = multi-user.target ] || fail "unexpected machine target probe: $target"
 
                 if [ -n "$quiet" ]; then
-                    status=$(run_in_namespaces "$deadline" "$machine" /usr/bin/systemctl is-active --quiet morimil-executor.target)
+                    run_in_namespaces "$deadline" "$machine" /usr/bin/systemctl is-active --quiet morimil-executor.target
                 else
-                    status=$(run_in_namespaces "$deadline" "$machine" /usr/bin/systemctl is-active morimil-executor.target)
+                    run_in_namespaces "$deadline" "$machine" /usr/bin/systemctl is-active morimil-executor.target
                 fi
+                status=$RUN_STATUS
                 ;;
             *)
-                status=$(run_bounded "$deadline" /usr/bin/systemctl "$@")
+                run_bounded "$deadline" /usr/bin/systemctl "$@"
+                status=$RUN_STATUS
                 ;;
         esac
 
@@ -208,7 +242,8 @@ case "$COMMAND" in
         deadline=${ARCH_EXECUTOR_CONTROL_TIMEOUT:-90}
         validate_deadline "$COMMAND" "$deadline"
         log_start "$deadline" "$@"
-        status=$(run_bounded "$deadline" /usr/bin/machinectl "$@")
+        run_bounded "$deadline" /usr/bin/machinectl "$@"
+        status=$RUN_STATUS
         log_finish "$status"
         exit "$status"
         ;;
