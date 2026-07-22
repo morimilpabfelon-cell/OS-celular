@@ -26,7 +26,7 @@ Este documento separa pruebas estáticas, contratos simulados y ejecución real.
 | Destrucción y reconstrucción | Validadas | dos generaciones del mismo pin |
 | Ciclo operacional | Validado | ejecución `29890214148` |
 | Perfil de límites declarativo | Automatizado | contratos de Fase 2F |
-| Límites cgroup y `/var` | En validación | job AArch64 de Fase 2F |
+| Límites cgroup y `/var` | Validados | ejecución `29892193434` |
 | Lista permitida de montajes | Pendiente | contrato explícito sin bind libre |
 | Soporte de teléfono físico | No iniciado | matriz por componente |
 
@@ -203,32 +203,49 @@ Los contratos estáticos verifican:
 - presencia de `--keep-unit`, `Delegate=yes` y propiedades de cgroup;
 - rechazo de evidencia alterada.
 
-La ejecución AArch64 debe conservar:
+La ejecución AArch64 `29892193434` validó el head `66fa058a2aaa5692d1c2d7ae578cdce6e5a17b7e`.
+
+Resultados observados:
 
 ```text
-cpu.max
-memory.high
-memory.max
-memory.swap.max
-pids.max
-cgroup-paths.env
-var-fstype.txt
-var-options.txt
-var-size-bytes.txt
-var-inodes.txt
-var-overflow-test.env
+unit_cgroup=/system.slice/morimil-arch-resource-limits-ci.service
+leader_cgroup=/system.slice/morimil-arch-resource-limits-ci.service/payload/init.scope
+cpu.max=100000 100000
+memory.high=536870912
+memory.max=805306368
+memory.swap.max=0
+pids.max=256
+var_fstype=tmpfs
+var_size_bytes=268435456
+var_inodes=65536
+var_overflow_rejected=yes
 ```
 
-La prueba solo se considera válida cuando:
+La prueba confirmó:
 
-1. el host usa cgroup v2;
-2. el PID 1 de Arch está en el cgroup de la unidad limitada o un descendiente;
-3. `cpu.max` representa el porcentaje declarado;
-4. memoria, swap y tareas coinciden exactamente;
-5. `/var` es `tmpfs` con tamaño e inodos exactos;
-6. una reserva superior al límite de `/var` es rechazada;
-7. rootfs, estado, política y perfil instalado son eliminados;
-8. Debian conserva boot ID, red y archivo centinela.
+1. cgroup v2 activo;
+2. PID 1 de Arch contenido en la unidad limitada;
+3. CPU equivalente a una CPU completa;
+4. presión de memoria desde 512 MiB y límite duro de 768 MiB;
+5. swap completamente desactivada;
+6. máximo de 256 tareas;
+7. `/var` limitado a 256 MiB y 65 536 inodos;
+8. reserva superior al límite rechazada;
+9. rootfs, estado, política, perfil y registro eliminados;
+10. Debian sin cambios en boot ID, red, namespace y archivo centinela.
+
+El perfil declarado tuvo SHA-256:
+
+```text
+3246d3497f9da39d5fc13523467cd95688042806c6a1ad0a2e7389563e57132a
+```
+
+El artefacto tuvo digest:
+
+```text
+morimil-arch-executor-resource-limits-29892193434
+sha256:e51a51f81225dbf7e5fe1bc500cc358abf29bd7ea8e56cb3fe26905c63f2b086
+```
 
 Contratos:
 
