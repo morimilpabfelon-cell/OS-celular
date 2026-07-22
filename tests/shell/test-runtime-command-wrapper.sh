@@ -21,6 +21,10 @@ fail() {
 [ -f "$WRAPPER" ] || fail "runtime command wrapper is missing: $WRAPPER"
 [ -x /usr/bin/systemctl ] || fail '/usr/bin/systemctl is required for the wrapper contract test'
 
+if grep -Fq -- '--fork' "$WRAPPER"; then
+    fail 'nsenter must use its default PID-namespace fork behavior'
+fi
+
 ln -s "$WRAPPER" "$TMP_DIR/systemctl"
 COMMAND_LOG=$TMP_DIR/commands.log
 
